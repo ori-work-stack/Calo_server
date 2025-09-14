@@ -67,24 +67,15 @@ export class EnhancedDailyGoalsService {
               todayString
             );
 
-            if (duplicateCheck.hasDailyGoal) {
-              result.skipped++;
-              console.log(`⏭️ Skipped user ${user.user_id} - goal already exists`);
-              return;
-            }
-
-            // Check if user should get goals based on subscription
-            const shouldCreate = await this.shouldCreateGoalsForUser(user, today);
-            if (!shouldCreate) {
-              result.skipped++;
-              return;
-            }
+            // For now, create goals for all users to ensure they have daily goals
+            // TODO: Implement subscription-based logic later
+            console.log(`📊 Creating goals for user ${user.user_id} (${isPremium ? "Premium" : "Free"})`);
 
             // Calculate personalized goals
             const goals = this.calculatePersonalizedGoals(user.questionnaires[0]);
 
             // Create goals with upsert for safety
-            await prisma.dailyGoal.upsert({
+            const createdGoal = await prisma.dailyGoal.upsert({
               where: {
                 user_id_date: {
                   user_id: user.user_id,
@@ -103,7 +94,11 @@ export class EnhancedDailyGoalsService {
             });
 
             result.created++;
-            console.log(`✅ Created daily goals for user: ${user.user_id}`);
+            console.log(`✅ Created daily goals for user: ${user.user_id}`, {
+              calories: createdGoal.calories,
+              protein_g: createdGoal.protein_g,
+              date: createdGoal.date
+            });
 
           } catch (error) {
             result.errors.push(`User ${user.user_id}: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -259,8 +254,7 @@ export class EnhancedDailyGoalsService {
 
       // If no goals for today, create them
       console.log("📊 No goals found for today, creating new ones...");
-      const newGoals = await this.createDailyGoalsForUser(userId);
-      return newGoals;
+      return await this.createDailyGoalsForUser(userId);
 
     } catch (error) {
       console.error("Error getting user daily goals:", error);
@@ -281,7 +275,7 @@ export class EnhancedDailyGoalsService {
   /**
    * Create daily goals for a specific user
    */
-  private static async createDailyGoalsForUser(userId: string): Promise<any> {
+  private static async createDailyGoalsForUser(userId: string): Promise<NutritionGoals> {
     try {
       const user = await prisma.user.findUnique({
         where: { user_id: userId },
@@ -309,7 +303,16 @@ export class EnhancedDailyGoalsService {
       });
 
       console.log(`✅ Created daily goals for user: ${userId}`);
-      return createdGoals;
+      return {
+        calories: Number(createdGoals.calories),
+        protein_g: Number(createdGoals.protein_g),
+        carbs_g: Number(createdGoals.carbs_g),
+        fats_g: Number(createdGoals.fats_g),
+        fiber_g: Number(createdGoals.fiber_g),
+        sodium_mg: Number(createdGoals.sodium_mg),
+        sugar_g: Number(createdGoals.sugar_g),
+        water_ml: Number(createdGoals.water_ml)
+      };
 
     } catch (error) {
       console.error(`Error creating daily goals for user ${userId}:`, error);

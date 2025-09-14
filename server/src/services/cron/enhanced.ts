@@ -165,6 +165,26 @@ export class EnhancedCronJobService {
       // 3. Create daily goals
       const goalsResult = await EnhancedDailyGoalsService.createDailyGoalsForAllUsers();
       console.log("📊 Daily goals result:", goalsResult);
+      
+      // 3.5. Force create goals for all users if none were created
+      if (goalsResult.created === 0) {
+        console.log("🔄 No goals created by enhanced service, trying legacy service...");
+        const { DailyGoalsService } = await import("../dailyGoal");
+        
+        // Get all users and create goals for them
+        const allUsers = await prisma.user.findMany({
+          select: { user_id: true }
+        });
+        
+        for (const user of allUsers) {
+          try {
+            await DailyGoalsService.createOrUpdateDailyGoals(user.user_id);
+            console.log(`✅ Created legacy daily goals for user: ${user.user_id}`);
+          } catch (error) {
+            console.error(`❌ Failed to create legacy goals for user ${user.user_id}:`, error);
+          }
+        }
+      }
 
       // 4. Generate AI recommendations
       if (process.env.OPENAI_API_KEY) {

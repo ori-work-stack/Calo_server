@@ -31,24 +31,6 @@ export class DailyGoalsService {
 
       const questionnaire = user.questionnaires[0];
       const today = new Date();
-      const signupDate = new Date(user.signup_date);
-
-      // Check if user should get new daily goals based on subscription
-      const shouldCreateGoals = await this.shouldCreateDailyGoals(user, today);
-
-      if (!shouldCreateGoals) {
-        console.log(
-          `⏭️ Skipping daily goals creation for user ${userId} - not due yet`
-        );
-
-        // Return existing goals if any
-        const existingGoals = await prisma.dailyGoal.findFirst({
-          where: { user_id: userId },
-          orderBy: { date: "desc" },
-        });
-
-        return existingGoals || this.createDefaultGoals(userId, questionnaire);
-      }
 
       // Calculate daily goals based on questionnaire
       const dailyGoals = this.calculateDailyGoals(questionnaire);
@@ -58,7 +40,7 @@ export class DailyGoalsService {
       const existingGoals = await prisma.dailyGoal.findFirst({
         where: {
           user_id: userId,
-          date: todayString,
+          date: new Date(todayString),
         },
       });
 
@@ -78,14 +60,23 @@ export class DailyGoalsService {
         savedGoals = await prisma.dailyGoal.create({
           data: {
             user_id: userId,
-            date: todayString,
+            date: new Date(todayString),
             ...dailyGoals,
           },
         });
         console.log("✅ Daily goals created successfully");
       }
 
-      return savedGoals;
+      return {
+        calories: Number(savedGoals.calories),
+        protein_g: Number(savedGoals.protein_g),
+        carbs_g: Number(savedGoals.carbs_g),
+        fats_g: Number(savedGoals.fats_g),
+        fiber_g: Number(savedGoals.fiber_g),
+        sodium_mg: Number(savedGoals.sodium_mg),
+        sugar_g: Number(savedGoals.sugar_g),
+        water_ml: Number(savedGoals.water_ml)
+      };
     } catch (error) {
       console.error("Error creating/updating daily goals:", error);
       throw error;
@@ -225,27 +216,55 @@ export class DailyGoalsService {
 
   static async getDailyGoals(userId: string) {
     try {
+      console.log(`📊 Getting daily goals for user: ${userId}`);
+      
+      const today = new Date().toISOString().split('T')[0];
+      
+      // First try to get today's goals
+      const todayGoals = await prisma.dailyGoal.findFirst({
+        where: { 
+          user_id: userId,
+          date: new Date(today)
+        },
+      });
+      
+      if (todayGoals) {
+        console.log("✅ Found existing daily goals for today");
+        return {
+          calories: Number(todayGoals.calories) || 2000,
+          protein_g: Number(todayGoals.protein_g) || 150,
+          carbs_g: Number(todayGoals.carbs_g) || 250,
+          fats_g: Number(todayGoals.fats_g) || 67,
+          fiber_g: Number(todayGoals.fiber_g) || 25,
+          sodium_mg: Number(todayGoals.sodium_mg) || 2300,
+          sugar_g: Number(todayGoals.sugar_g) || 50,
+          water_ml: Number(todayGoals.water_ml) || 2500,
+        };
+      }
+      
+      // If no goals for today, try to get any existing goals
       const goals = await prisma.dailyGoal.findFirst({
         where: { user_id: userId },
+        orderBy: { date: "desc" },
       });
 
       if (!goals) {
+        console.log("📊 No existing goals found, creating new ones");
         // Create default goals if none exist
         return await this.createOrUpdateDailyGoals(userId);
       }
 
-      if (goals) {
-        return {
-          calories: Number(goals.calories) || 2000,
-          protein_g: Number(goals.protein_g) || 150,
-          carbs_g: Number(goals.carbs_g) || 250,
-          fats_g: Number(goals.fats_g) || 67,
-          fiber_g: Number(goals.fiber_g) || 25,
-          sodium_mg: Number(goals.sodium_mg) || 2300,
-          sugar_g: Number(goals.sugar_g) || 50,
-          water_ml: Number(goals.water) || 2500,
-        };
-      }
+      console.log("✅ Found existing daily goals");
+      return {
+        calories: Number(goals.calories) || 2000,
+        protein_g: Number(goals.protein_g) || 150,
+        carbs_g: Number(goals.carbs_g) || 250,
+        fats_g: Number(goals.fats_g) || 67,
+        fiber_g: Number(goals.fiber_g) || 25,
+        sodium_mg: Number(goals.sodium_mg) || 2300,
+        sugar_g: Number(goals.sugar_g) || 50,
+        water_ml: Number(goals.water_ml) || 2500,
+      };
     } catch (error) {
       console.error("Error fetching daily goals:", error);
       throw error;

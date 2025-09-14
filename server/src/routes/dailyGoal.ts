@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { authenticateToken, AuthRequest } from "../middleware/auth";
 import { DailyGoalsService } from "../services/dailyGoal";
+import { prisma } from "../lib/database";
 
 const router = Router();
 
@@ -8,7 +9,35 @@ const router = Router();
 router.get("/", authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.user.user_id;
-    const goals = await DailyGoalsService.getDailyGoals(userId);
+    
+    console.log("📊 Getting daily goals for user:", userId);
+    
+    // First check if goals exist for today
+    const today = new Date().toISOString().split('T')[0];
+    const existingGoals = await prisma.dailyGoal.findFirst({
+      where: {
+        user_id: userId,
+        date: new Date(today)
+      }
+    });
+    
+    let goals;
+    if (existingGoals) {
+      console.log("✅ Found existing daily goals for today");
+      goals = {
+        calories: Number(existingGoals.calories),
+        protein_g: Number(existingGoals.protein_g),
+        carbs_g: Number(existingGoals.carbs_g),
+        fats_g: Number(existingGoals.fats_g),
+        fiber_g: Number(existingGoals.fiber_g),
+        sodium_mg: Number(existingGoals.sodium_mg),
+        sugar_g: Number(existingGoals.sugar_g),
+        water_ml: Number(existingGoals.water_ml)
+      };
+    } else {
+      console.log("📊 No goals found for today, creating new ones");
+      goals = await DailyGoalsService.createOrUpdateDailyGoals(userId);
+    }
 
     res.json({
       success: true,
@@ -27,7 +56,37 @@ router.get("/", authenticateToken, async (req: AuthRequest, res) => {
 router.put("/", authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.user.user_id;
-    const goals = await DailyGoalsService.createOrUpdateDailyGoals(userId);
+    
+    console.log("🔄 Manual daily goals creation for user:", userId);
+    
+    // Force create new daily goals for today
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Check if goals already exist for today
+    const existingGoals = await prisma.dailyGoal.findFirst({
+      where: {
+        user_id: userId,
+        date: new Date(today)
+      }
+    });
+    
+    let goals;
+    if (existingGoals) {
+      console.log("📊 Daily goals already exist for today, returning existing");
+      goals = {
+        calories: Number(existingGoals.calories),
+        protein_g: Number(existingGoals.protein_g),
+        carbs_g: Number(existingGoals.carbs_g),
+        fats_g: Number(existingGoals.fats_g),
+        fiber_g: Number(existingGoals.fiber_g),
+        sodium_mg: Number(existingGoals.sodium_mg),
+        sugar_g: Number(existingGoals.sugar_g),
+        water_ml: Number(existingGoals.water_ml)
+      };
+    } else {
+      console.log("📊 Creating new daily goals for today");
+      goals = await DailyGoalsService.createOrUpdateDailyGoals(userId);
+    }
 
     res.json({
       success: true,
