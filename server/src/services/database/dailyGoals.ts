@@ -30,20 +30,20 @@ export class EnhancedDailyGoalsService {
 
       console.log("📅 Creating goals for date:", todayString);
 
-      // First, get ALL users to see what we're working with
-      const allUsers = await prisma.user.findMany({
-        select: {
-          user_id: true,
-          email: true,
-          subscription_type: true,
-          is_questionnaire_completed: true,
-          created_at: true
-        }
+      // Get users who should receive goals today
+      const eligibleUsers = await prisma.user.findMany({
+        // Get ALL users first, then filter manually
+        include: {
+          questionnaires: {
+            orderBy: { date_completed: "desc" },
+            take: 1,
+          },
+        },
       });
 
-      console.log(`👥 Total users in database: ${allUsers.length}`);
+      console.log(`👥 Total users in database: ${eligibleUsers.length}`);
 
-      if (allUsers.length === 0) {
+      if (eligibleUsers.length === 0) {
         console.log("❌ No users found in database");
         return result;
       }
@@ -62,12 +62,12 @@ export class EnhancedDailyGoalsService {
       console.log(`📊 Users with existing goals for today: ${usersWithGoals.size}`);
 
       // Filter users who need goals
-      const usersNeedingGoals = allUsers.filter(user => !usersWithGoals.has(user.user_id));
+      const usersNeedingGoals = eligibleUsers.filter(user => !usersWithGoals.has(user.user_id));
       console.log(`🎯 Users needing daily goals: ${usersNeedingGoals.length}`);
 
       if (usersNeedingGoals.length === 0) {
         console.log("✅ All users already have daily goals for today");
-        result.skipped = allUsers.length;
+        result.skipped = eligibleUsers.length;
         return result;
       }
 
