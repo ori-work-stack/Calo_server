@@ -151,6 +151,8 @@ export class EnhancedAIRecommendationService {
         dailyGoals,
         userProfile,
       });
+    }
+  }
 
   /**
    * Generate personalized recommendation for a specific user
