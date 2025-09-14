@@ -430,44 +430,80 @@ export class EnhancedDailyGoalsService {
           console.log(`🎯 Goals for ${user.user_id}:`, goals);
 
           // Use upsert to create or update
-          const savedGoal = await prisma.dailyGoal.upsert({
+          // Check if goal already exists first
+          const existingGoal = await prisma.dailyGoal.findFirst({
             where: {
-              user_id_date: {
-                user_id: user.user_id,
-                date: todayDate
-              }
-            },
-            update: {
-              calories: goals.calories,
-              protein_g: goals.protein_g,
-              carbs_g: goals.carbs_g,
-              fats_g: goals.fats_g,
-              fiber_g: goals.fiber_g,
-              sodium_mg: goals.sodium_mg,
-              sugar_g: goals.sugar_g,
-              water_ml: goals.water_ml,
-              updated_at: new Date()
-            },
-            create: {
               user_id: user.user_id,
-              date: todayDate,
-              calories: goals.calories,
-              protein_g: goals.protein_g,
-              carbs_g: goals.carbs_g,
-              fats_g: goals.fats_g,
-              fiber_g: goals.fiber_g,
-              sodium_mg: goals.sodium_mg,
-              sugar_g: goals.sugar_g,
-              water_ml: goals.water_ml,
+              date: todayDate
             }
           });
 
-          if (savedGoal.updated_at.getTime() === savedGoal.created_at.getTime()) {
-            result.created++;
-            console.log(`✅ CREATED goal for user: ${user.user_id}`);
-          } else {
+          let savedGoal;
+          if (existingGoal) {
+            console.log(`🔄 Updating existing goal for user: ${user.user_id}`);
+            savedGoal = await prisma.dailyGoal.update({
+              where: {
+                id: existingGoal.id
+              },
+              data: {
+                calories: goals.calories,
+                protein_g: goals.protein_g,
+                carbs_g: goals.carbs_g,
+                fats_g: goals.fats_g,
+                fiber_g: goals.fiber_g,
+                sodium_mg: goals.sodium_mg,
+                sugar_g: goals.sugar_g,
+                water_ml: goals.water_ml,
+                updated_at: new Date()
+              }
+            });
             result.updated++;
-            console.log(`🔄 UPDATED goal for user: ${user.user_id}`);
+            console.log(`✅ UPDATED goal for user: ${user.user_id}`, {
+              id: savedGoal.id,
+              calories: savedGoal.calories,
+              date: savedGoal.date
+            });
+          } else {
+            console.log(`➕ Creating NEW goal for user: ${user.user_id}`);
+            savedGoal = await prisma.dailyGoal.create({
+              data: {
+                user_id: user.user_id,
+                date: todayDate,
+                calories: goals.calories,
+                protein_g: goals.protein_g,
+                carbs_g: goals.carbs_g,
+                fats_g: goals.fats_g,
+                fiber_g: goals.fiber_g,
+                sodium_mg: goals.sodium_mg,
+                sugar_g: goals.sugar_g,
+                water_ml: goals.water_ml,
+              }
+            });
+            result.created++;
+            console.log(`✅ CREATED goal for user: ${user.user_id}`, {
+              id: savedGoal.id,
+              calories: savedGoal.calories,
+              date: savedGoal.date
+            });
+          }
+
+          // Verify the goal was actually saved
+          const verifyGoal = await prisma.dailyGoal.findFirst({
+            where: {
+              user_id: user.user_id,
+              date: todayDate
+            }
+          });
+
+          if (verifyGoal) {
+            console.log(`✅ VERIFIED goal exists in database for user: ${user.user_id}`, {
+              id: verifyGoal.id,
+              calories: verifyGoal.calories,
+              date: verifyGoal.date.toISOString().split('T')[0]
+            });
+          } else {
+            console.error(`❌ VERIFICATION FAILED - Goal not found in database for user: ${user.user_id}`);
+            result.errors.push(`Verification failed for user ${user.user_id}`);
           }
 
         } catch (userError) {
