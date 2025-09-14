@@ -1,11 +1,10 @@
 import { PrismaClient } from "@prisma/client";
-import { DatabaseOptimizationService } from "../services/database/optimization";
 
 declare global {
   var __prisma: PrismaClient | undefined;
 }
 
-// Enhanced database configuration
+// Get database URL from environment
 const getDatabaseUrl = () => {
   const url = process.env.DATABASE_URL;
   if (!url) {
@@ -14,44 +13,30 @@ const getDatabaseUrl = () => {
   return url;
 };
 
+// Create Prisma client with proper configuration
 export const prisma =
   globalThis.__prisma ||
   new PrismaClient({
     log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
     errorFormat: "pretty",
-    datasources: {
-      db: {
-        url: getDatabaseUrl(),
-      },
-    },
   });
 
 if (process.env.NODE_ENV === "development") {
   globalThis.__prisma = prisma;
 }
 
-// Enhanced database connection with health monitoring
+// Database connection with health monitoring
 prisma
   .$connect()
   .then(async () => {
     console.log("✅ Database connected successfully");
 
-    // Run initial health check and optimization
+    // Run initial health check
     try {
-      const health = await DatabaseOptimizationService.checkDatabaseHealth();
-      console.log("📊 Initial database health:", health);
-
-      if (health.needsCleanup) {
-        console.log("🧹 Running initial cleanup...");
-        await DatabaseOptimizationService.performIntelligentCleanup();
-      }
-
-      // Optimize database on startup
-      await DatabaseOptimizationService.optimizeDatabase();
-      console.log("⚡ Database optimization completed");
-
+      await prisma.$queryRaw`SELECT 1`;
+      console.log("📊 Database health check passed");
     } catch (error) {
-      console.error("⚠️ Initial database setup failed:", error);
+      console.error("⚠️ Database health check failed:", error);
     }
   })
   .catch((error) => {

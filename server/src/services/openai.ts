@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { MealAnalysisResult } from "../types/openai";
+import { MealAnalysisResult, Ingredient } from "../types/openai";
 import { extractCleanJSON, parsePartialJSON } from "../utils/openai";
 
 const openai = process.env.OPENAI_API_KEY
@@ -206,9 +206,31 @@ Return only the JSON object with updated values.`;
     {
       "name": "${isHebrew ? 'שם המרכיב' : 'ingredient name'}",
       "calories": ${isHebrew ? 'קלוריות' : 'calories'},
-      "protein_g": ${isHebrew ? 'חלבון' : 'protein'},
-      "carbs_g": ${isHebrew ? 'פחמימות' : 'carbs'},
-      "fats_g": ${isHebrew ? 'שומן' : 'fat'}
+      "protein": ${isHebrew ? 'חלבון' : 'protein'},
+      "carbs": ${isHebrew ? 'פחמימות' : 'carbs'},
+      "fat": ${isHebrew ? 'שומן' : 'fat'},
+      "protein_g": ${isHebrew ? 'חלבון בגרמים' : 'protein in grams'},
+      "carbs_g": ${isHebrew ? 'פחמימות בגרמים' : 'carbs in grams'},
+      "fats_g": ${isHebrew ? 'שומן בגרמים' : 'fat in grams'},
+      "fiber_g": ${isHebrew ? 'סיבים' : 'fiber in grams'},
+      "sugar_g": ${isHebrew ? 'סוכר' : 'sugar in grams'},
+      "sodium_mg": ${isHebrew ? 'נתרן' : 'sodium in mg'},
+      "cholesterol_mg": ${isHebrew ? 'כולסטרול' : 'cholesterol in mg'},
+      "saturated_fats_g": ${isHebrew ? 'שומן רווי' : 'saturated fat'},
+      "polyunsaturated_fats_g": ${isHebrew ? 'שומן רב בלתי רווי' : 'polyunsaturated fat'},
+      "monounsaturated_fats_g": ${isHebrew ? 'שומן חד בלתי רווי' : 'monounsaturated fat'},
+      "omega_3_g": ${isHebrew ? 'אומגה 3' : 'omega 3'},
+      "omega_6_g": ${isHebrew ? 'אומגה 6' : 'omega 6'},
+      "soluble_fiber_g": ${isHebrew ? 'סיבים מסיסים' : 'soluble fiber'},
+      "insoluble_fiber_g": ${isHebrew ? 'סיבים בלתי מסיסים' : 'insoluble fiber'},
+      "alcohol_g": ${isHebrew ? 'אלכוהול' : 'alcohol'},
+      "caffeine_mg": ${isHebrew ? 'קפאין' : 'caffeine'},
+      "serving_size_g": ${isHebrew ? 'גודל מנה' : 'serving size'},
+      "glycemic_index": ${isHebrew ? 'אינדקס גליקמי' : 'glycemic index'},
+      "insulin_index": ${isHebrew ? 'אינדקס אינסולין' : 'insulin index'},
+      "vitamins_json": {},
+      "micronutrients_json": {},
+      "allergens_json": {}
     }
   ],
   "cookingMethod": "${isHebrew ? 'שיטת בישול' : 'cooking method'}",
@@ -255,6 +277,42 @@ ${additionalInstructions}`;
       const cleanedJSON = extractCleanJSON(content);
       const parsed = parsePartialJSON(cleanedJSON);
 
+      // Create properly formatted ingredients
+      const formattedIngredients: Ingredient[] = (parsed.ingredients || []).map((ingredient: any, index: number) => {
+        // Ensure ingredient has all required properties
+        const baseIngredient = {
+          name: ingredient.name || `Item ${index + 1}`,
+          calories: Number(ingredient.calories) || 0,
+          protein: Number(ingredient.protein || ingredient.protein_g) || 0,
+          carbs: Number(ingredient.carbs || ingredient.carbs_g) || 0,
+          fat: Number(ingredient.fat || ingredient.fats_g) || 0,
+          protein_g: Number(ingredient.protein_g || ingredient.protein) || 0,
+          carbs_g: Number(ingredient.carbs_g || ingredient.carbs) || 0,
+          fats_g: Number(ingredient.fats_g || ingredient.fat) || 0,
+          fiber_g: Number(ingredient.fiber_g) || 0,
+          sugar_g: Number(ingredient.sugar_g) || 0,
+          sodium_mg: Number(ingredient.sodium_mg) || 0,
+          cholesterol_mg: Number(ingredient.cholesterol_mg) || 0,
+          saturated_fats_g: Number(ingredient.saturated_fats_g) || 0,
+          polyunsaturated_fats_g: Number(ingredient.polyunsaturated_fats_g) || 0,
+          monounsaturated_fats_g: Number(ingredient.monounsaturated_fats_g) || 0,
+          omega_3_g: Number(ingredient.omega_3_g) || 0,
+          omega_6_g: Number(ingredient.omega_6_g) || 0,
+          soluble_fiber_g: Number(ingredient.soluble_fiber_g) || 0,
+          insoluble_fiber_g: Number(ingredient.insoluble_fiber_g) || 0,
+          alcohol_g: Number(ingredient.alcohol_g) || 0,
+          caffeine_mg: Number(ingredient.caffeine_mg) || 0,
+          serving_size_g: Number(ingredient.serving_size_g) || 0,
+          glycemic_index: ingredient.glycemic_index ? Number(ingredient.glycemic_index) : undefined,
+          insulin_index: ingredient.insulin_index ? Number(ingredient.insulin_index) : undefined,
+          vitamins_json: ingredient.vitamins_json || {},
+          micronutrients_json: ingredient.micronutrients_json || {},
+          allergens_json: ingredient.allergens_json || {},
+        };
+
+        return baseIngredient;
+      });
+
       // Validate and normalize the response
       const result: MealAnalysisResult = {
         name: parsed.name || "Unknown Meal",
@@ -270,13 +328,15 @@ ${additionalInstructions}`;
         cholesterol_mg: Number(parsed.cholesterol_mg) || 0,
         serving_size_g: Number(parsed.serving_size_g) || 100,
         confidence: Number(parsed.confidence) || 75,
-        ingredients: Array.isArray(parsed.ingredients) ? parsed.ingredients : [],
+        ingredients: formattedIngredients,
         servingSize: parsed.servingSize || "1 serving",
         cookingMethod: parsed.cookingMethod || "Unknown",
         healthNotes: parsed.healthNotes || "",
         food_category: parsed.food_category || "Mixed",
         processing_level: parsed.processing_level || "Moderate",
-        recommendations: parsed.healthNotes || "Meal analyzed successfully"
+        recommendations: parsed.healthNotes || "Meal analyzed successfully",
+        glycemic_index: parsed.glycemic_index ? Number(parsed.glycemic_index) : undefined,
+        insulin_index: parsed.insulin_index ? Number(parsed.insulin_index) : undefined,
       };
 
       console.log("✅ OpenAI response parsed successfully");
@@ -297,26 +357,73 @@ ${additionalInstructions}`;
   ): MealAnalysisResult {
     console.log("🆘 Using fallback meal analysis");
 
-    // Use edited ingredients if provided
-    const ingredients = editedIngredients.length > 0 
-      ? editedIngredients 
+    // Use edited ingredients if provided, otherwise create default
+    const ingredients: Ingredient[] = editedIngredients.length > 0 
+      ? editedIngredients.map((ing, index) => ({
+          name: ing.name || `Item ${index + 1}`,
+          calories: Number(ing.calories) || 200,
+          protein: Number(ing.protein || ing.protein_g) || 15,
+          carbs: Number(ing.carbs || ing.carbs_g) || 25,
+          fat: Number(ing.fat || ing.fats_g) || 8,
+          protein_g: Number(ing.protein_g || ing.protein) || 15,
+          carbs_g: Number(ing.carbs_g || ing.carbs) || 25,
+          fats_g: Number(ing.fats_g || ing.fat) || 8,
+          fiber_g: Number(ing.fiber_g) || 3,
+          sugar_g: Number(ing.sugar_g) || 5,
+          sodium_mg: Number(ing.sodium_mg) || 300,
+          cholesterol_mg: Number(ing.cholesterol_mg) || 0,
+          saturated_fats_g: Number(ing.saturated_fats_g) || 0,
+          polyunsaturated_fats_g: Number(ing.polyunsaturated_fats_g) || 0,
+          monounsaturated_fats_g: Number(ing.monounsaturated_fats_g) || 0,
+          omega_3_g: Number(ing.omega_3_g) || 0,
+          omega_6_g: Number(ing.omega_6_g) || 0,
+          soluble_fiber_g: Number(ing.soluble_fiber_g) || 0,
+          insoluble_fiber_g: Number(ing.insoluble_fiber_g) || 0,
+          alcohol_g: Number(ing.alcohol_g) || 0,
+          caffeine_mg: Number(ing.caffeine_mg) || 0,
+          serving_size_g: Number(ing.serving_size_g) || 0,
+          glycemic_index: ing.glycemic_index ? Number(ing.glycemic_index) : undefined,
+          insulin_index: ing.insulin_index ? Number(ing.insulin_index) : undefined,
+          vitamins_json: ing.vitamins_json || {},
+          micronutrients_json: ing.micronutrients_json || {},
+          allergens_json: ing.allergens_json || {},
+        }))
       : [
           {
             name: "Mixed ingredients",
             calories: 200,
+            protein: 15,
+            carbs: 25,
+            fat: 8,
             protein_g: 15,
             carbs_g: 25,
             fats_g: 8,
             fiber_g: 3,
             sugar_g: 5,
-            sodium_mg: 300
+            sodium_mg: 300,
+            cholesterol_mg: 0,
+            saturated_fats_g: 0,
+            polyunsaturated_fats_g: 0,
+            monounsaturated_fats_g: 0,
+            omega_3_g: 0,
+            omega_6_g: 0,
+            soluble_fiber_g: 0,
+            insoluble_fiber_g: 0,
+            alcohol_g: 0,
+            caffeine_mg: 0,
+            serving_size_g: 0,
+            glycemic_index: undefined,
+            insulin_index: undefined,
+            vitamins_json: {},
+            micronutrients_json: {},
+            allergens_json: {},
           }
         ];
 
     const totalCalories = ingredients.reduce((sum, ing) => sum + (ing.calories || 0), 0);
-    const totalProtein = ingredients.reduce((sum, ing) => sum + (ing.protein_g || 0), 0);
-    const totalCarbs = ingredients.reduce((sum, ing) => sum + (ing.carbs_g || 0), 0);
-    const totalFat = ingredients.reduce((sum, ing) => sum + (ing.fats_g || 0), 0);
+    const totalProtein = ingredients.reduce((sum, ing) => sum + (ing.protein || 0), 0);
+    const totalCarbs = ingredients.reduce((sum, ing) => sum + (ing.carbs || 0), 0);
+    const totalFat = ingredients.reduce((sum, ing) => sum + (ing.fat || 0), 0);
 
     return {
       name: updateText ? `Updated Meal: ${updateText.substring(0, 30)}...` : "Analyzed Meal",
@@ -335,7 +442,9 @@ ${additionalInstructions}`;
       healthNotes: "Analysis completed using fallback method. For more accurate results, please ensure OpenAI API is configured.",
       food_category: "Mixed",
       processing_level: "Moderate",
-      recommendations: "Meal logged successfully. Consider adding more vegetables for better nutrition balance."
+      recommendations: "Meal logged successfully. Consider adding more vegetables for better nutrition balance.",
+      glycemic_index: undefined,
+      insulin_index: undefined,
     };
   }
 
@@ -371,7 +480,9 @@ ${additionalInstructions}`;
       calories: updatedCalories,
       confidence: 50,
       healthNotes: `Updated based on user input: ${updateText}. For more accurate analysis, please ensure OpenAI API is configured.`,
-      recommendations: "Meal updated successfully using fallback method."
+      recommendations: "Meal updated successfully using fallback method.",
+      glycemic_index: originalAnalysis.glycemic_index || undefined,
+      insulin_index: originalAnalysis.insulin_index || undefined,
     };
   }
 
@@ -392,8 +503,11 @@ ${additionalInstructions}`;
   } {
     return {
       available: this.isAvailable(),
-      model: this.isAvailable() ? "gpt-4o" : "fallback",
+      model: this.isAvailable() ? "gpt-4" : "fallback",
       lastUsed: this.isAvailable() ? new Date() : undefined
     };
   }
 }
+
+// Export the openai instance for other services
+export { openai };

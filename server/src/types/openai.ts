@@ -1,31 +1,31 @@
 export interface Ingredient {
+  name: string;
+  calories: number;
   protein: number;
   carbs: number;
   fat: number;
-  cholesterol_mg: number;
-  saturated_fats_g: number;
-  polyunsaturated_fats_g: number;
-  monounsaturated_fats_g: number;
-  omega_3_g: number;
-  omega_6_g: number;
-  soluble_fiber_g: number;
-  insoluble_fiber_g: number;
-  alcohol_g: number;
-  caffeine_mg: number;
-  serving_size_g: number;
-  glycemic_index: null;
-  insulin_index: null;
-  vitamins_json: {};
-  micronutrients_json: {};
-  allergens_json: {};
-  name: string;
-  calories: number;
   protein_g: number;
   carbs_g: number;
   fats_g: number;
   fiber_g?: number;
   sugar_g?: number;
   sodium_mg?: number;
+  cholesterol_mg?: number;
+  saturated_fats_g?: number;
+  polyunsaturated_fats_g?: number;
+  monounsaturated_fats_g?: number;
+  omega_3_g?: number;
+  omega_6_g?: number;
+  soluble_fiber_g?: number;
+  insoluble_fiber_g?: number;
+  alcohol_g?: number;
+  caffeine_mg?: number;
+  serving_size_g?: number;
+  glycemic_index?: number | null;
+  insulin_index?: number | null;
+  vitamins_json?: any;
+  micronutrients_json?: any;
+  allergens_json?: any;
 }
 
 export interface MealAnalysisResult {
@@ -68,8 +68,8 @@ export interface MealAnalysisResult {
   additives_json?: any;
 
   // Indexes and categories
-  glycemic_index?: number;
-  insulin_index?: number;
+  glycemic_index?: number | undefined;
+  insulin_index?: number | undefined;
   food_category?: string;
   processing_level?: string;
   cooking_method?: string;

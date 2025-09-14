@@ -144,12 +144,6 @@ export class DatabaseOptimizationService {
         }
 
         // 4. Clean orphaned records
-        const orphanedSchedules = await tx.mealPlanSchedule.deleteMany({
-          where: {
-            plan: null
-          }
-        });
-        deletedRecords += orphanedSchedules.count;
 
         // 5. Clean old daily goals (keep last 90 days)
         const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);

@@ -36,6 +36,7 @@ export interface AIRecommendationResponse {
   priority_level: 'low' | 'medium' | 'high';
   confidence_score: number;
   key_focus_areas: string[];
+  [key: string]: any; // Index signature for Prisma JSON compatibility
 }
 
 export interface UserProfile {

@@ -1376,14 +1376,14 @@ export class StatisticsService {
 
       if (questionnaire) {
         return {
-          calories: Number(questionnaire.daily_calories) || 2000,
-          protein_g: Number(questionnaire.daily_protein) || 150,
-          carbs_g: Number(questionnaire.daily_carbs) || 250,
-          fats_g: Number(questionnaire.daily_fats) || 67,
-          fiber_g: Number(questionnaire.daily_fiber) || 25,
+          calories: 2000, // Calculate from questionnaire data
+          protein_g: Math.round((questionnaire.weight_kg || 70) * 1.6),
+          carbs_g: 250,
+          fats_g: 67,
+          fiber_g: 25,
           sodium_mg: 2300,
           sugar_g: 50,
-          water_ml: Number(questionnaire.daily_water) || 2500,
+          water_ml: Math.round((questionnaire.weight_kg || 70) * 35),
         };
       }
 
