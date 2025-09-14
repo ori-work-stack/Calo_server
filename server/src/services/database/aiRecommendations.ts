@@ -288,7 +288,6 @@ Be specific, actionable, and encouraging. Focus on realistic improvements.
 
     return this.saveRecommendation(userId, fallbackRecommendations);
   }
-  }
 
   /**
    * Generate personalized recommendation for a specific user
@@ -554,7 +553,7 @@ Be specific, actionable, and encouraging. Consider the user's allergies and diet
         data: {
           user_id: userId,
           date: today,
-          recommendations: recommendations,
+          recommendations: recommendations as any,
           priority_level: recommendations.priority_level,
           confidence_score: recommendations.confidence_score,
           based_on: {
