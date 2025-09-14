@@ -110,6 +110,48 @@ export class EnhancedAIRecommendationService {
     }
   }
 
+  static async generateDailyRecommendations(
+    userId: string
+  ): Promise<DailyRecommendation> {
+    try {
+      console.log("🤖 Generating daily AI recommendations for user:", userId);
+
+      // Get user's recent performance (last 7 days)
+      const recentStats = await StatisticsService.getNutritionStatistics(
+        userId,
+        "week"
+      );
+
+      // Get yesterday's performance specifically
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStart = new Date(
+        yesterday.getFullYear(),
+        yesterday.getMonth(),
+        yesterday.getDate()
+      );
+      const yesterdayEnd = new Date(yesterdayStart);
+      yesterdayEnd.setDate(yesterdayEnd.getDate() + 1);
+
+      const yesterdayStats = await StatisticsService.getPeriodConsumption(
+        userId,
+        yesterdayStart,
+        yesterdayEnd
+      );
+      const dailyGoals = await StatisticsService.getUserDailyGoals(userId);
+
+      // Get user preferences and restrictions
+      const userProfile = await this.getUserProfile(userId);
+
+      // Generate AI recommendations
+      const aiRecommendations = await this.callAIForRecommendations({
+        userId,
+        recentPerformance: recentStats,
+        yesterdayConsumption: yesterdayStats,
+        dailyGoals,
+        userProfile,
+      });
+
   /**
    * Generate personalized recommendation for a specific user
    */
