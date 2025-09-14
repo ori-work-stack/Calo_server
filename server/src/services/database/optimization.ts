@@ -136,6 +136,12 @@ export class DatabaseOptimizationService {
               where: {
                 message_id: {
                   in: oldMessages.map(m => m.message_id)
+                }
+              }
+            }
+            )
+          }
+        }
 
         // 5. Clean old daily goals (keep last 90 days)
         const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
