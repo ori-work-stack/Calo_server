@@ -212,15 +212,14 @@ export class DailyGoalsService {
     }
 
     return {
-      goal_calories: baseCalories,
-      goal_protein_g: baseProtein,
-      goal_carbs_g: baseCarbs,
-      goal_fats_g: baseFats,
-      goal_fiber_g: 25,
-      goal_water_ml: baseWaterMl,
-      goal_sodium_mg: 2300,
-      goal_sugar_g: 50,
-      updated_at: new Date(),
+      calories: baseCalories,
+      protein_g: baseProtein,
+      carbs_g: baseCarbs,
+      fats_g: baseFats,
+      fiber_g: 25,
+      water_ml: baseWaterMl,
+      sodium_mg: 2300,
+      sugar_g: 50,
     };
   }
 

@@ -789,6 +789,10 @@ export class AuthService {
   static async verifyResetCode(email: string, code: string): Promise<string> {
     console.log("🔒 Verifying reset code for:", email);
 
+    if (!code || code.trim() === "") {
+      throw new Error("Reset code is required");
+    }
+
     const user = await prisma.user.findUnique({
       where: { email },
     });
@@ -801,7 +805,7 @@ export class AuthService {
       throw new Error("No reset code found");
     }
 
-    if (user.password_reset_code !== code) {
+    if (user.password_reset_code !== code.trim()) {
       throw new Error("Invalid reset code");
     }
 

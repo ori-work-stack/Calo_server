@@ -213,7 +213,12 @@ router.post(
               ];
             }
 
-            achievementResult.xpGained += completeDayResult.xpGained || 0;
+            if (
+              typeof achievementResult.xpGained === "number" &&
+              typeof completeDayResult.xpGained === "number"
+            ) {
+              achievementResult.xpGained += completeDayResult.xpGained;
+            }
 
             if (completeDayResult.leveledUp) {
               achievementResult.leveledUp = completeDayResult.leveledUp;

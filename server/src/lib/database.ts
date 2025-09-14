@@ -49,17 +49,29 @@ export class DatabaseCleanup {
     try {
       console.log("🚨 Starting emergency database cleanup...");
 
-      // 1. Clean old chat messages (keep last 50 per user)
-      const chatCleanup = await prisma.$executeRaw`
-        DELETE FROM "ChatMessage" 
-        WHERE message_id NOT IN (
-          SELECT message_id FROM (
-            SELECT message_id, ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY created_at DESC) as rn
-            FROM "ChatMessage"
-          ) ranked
-          WHERE rn <= 50
-        )
-      `;
+      // 1. Clean old chat messages (keep last 50 per user) - Use safer approach
+      const users = await prisma.user.findMany({
+        select: { user_id: true },
+      });
+
+      for (const user of users) {
+        const oldMessages = await prisma.chatMessage.findMany({
+          where: { user_id: user.user_id },
+          orderBy: { created_at: "desc" },
+          skip: 50,
+          select: { message_id: true },
+        });
+
+        if (oldMessages.length > 0) {
+          await prisma.chatMessage.deleteMany({
+            where: {
+              message_id: {
+                in: oldMessages.map((m) => m.message_id),
+              },
+            },
+          });
+        }
+      }
 
       // 2. Clean old AI recommendations (keep last 30 days)
       const thirtyDaysAgo = new Date();
@@ -82,14 +94,17 @@ export class DatabaseCleanup {
         },
       });
 
-      // 4. VACUUM to reclaim space
-      await prisma.$executeRaw`VACUUM`;
+      // 4. Clean up orphaned records
+      await prisma.mealPlanSchedule.deleteMany({
+        where: {
+          plan: null,
+        },
+      });
 
       console.log(`✅ Emergency cleanup completed:
-        - Chat messages cleaned
         - AI recommendations cleaned: ${aiCleanup.count}
         - Sessions cleaned: ${sessionCleanup.count}
-        - Database vacuumed`);
+        - Orphaned records cleaned`);
     } catch (error) {
       console.error("❌ Emergency cleanup failed:", error);
       throw error;

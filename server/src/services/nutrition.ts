@@ -1,3 +1,4 @@
+import { mapMealDataToPrismaFields } from "../utils/nutrition";
 import { OpenAIService } from "./openai";
 import { prisma } from "../lib/database";
 import { MealAnalysisInput, MealUpdateInput } from "../types/nutrition";

@@ -318,7 +318,7 @@ router.post("/verify-reset-code", async (req, res) => {
       message: "Code verified successfully",
     });
   } catch (error) {
-    console.error("💥 Verify reset code error:", error);
+    console.error("💥 Reset code verification error:", error);
     if (error instanceof Error) {
       res.status(400).json({
         success: false,

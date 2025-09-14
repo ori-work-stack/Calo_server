@@ -363,13 +363,15 @@ export class StatisticsService {
       // Calculate calorie goal completions efficiently with error handling
       let mealDays: Array<{ count: number }> = [{ count: 0 }];
       try {
-        mealDays = await prisma.$queryRaw<Array<{ count: number }>>`
-          SELECT COUNT(DISTINCT DATE(created_at)) as count
-          FROM "Meal" 
-          WHERE user_id = ${userId}
-          GROUP BY DATE(created_at)
-          HAVING SUM(calories) >= 1800
-        `;
+        const mealDaysResult = await prisma.meal.groupBy({
+          by: ["created_at"],
+          where: { user_id: userId },
+          _sum: { calories: true },
+          having: {
+            calories: { _sum: { gte: 1800 } },
+          },
+        });
+        mealDays = [{ count: mealDaysResult.length }];
         if (mealDays.length === 0) {
           mealDays = [{ count: 0 }];
         }

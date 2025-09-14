@@ -435,7 +435,6 @@ export class AchievementService {
               | "LEVEL"
               | "SPECIAL",
             xpReward: achievement.points_awarded,
-            icon: this.getIconForKey(achievement.key, achievement.category),
             icon:
               achievement.icon ||
               this.getIconForKey(achievement.key, achievement.category),
@@ -558,7 +557,12 @@ export class AchievementService {
     waterGoalComplete: boolean = false,
     calorieGoalComplete: boolean = false,
     xpAwarded: number = 0
-  ) {
+  ): Promise<{
+    newAchievements: Achievement[];
+    xpGained: number;
+    leveledUp: boolean;
+    newLevel?: number;
+  }> {
     try {
       console.log(
         "🏆 Updating user progress and checking achievements for:",
@@ -607,10 +611,9 @@ export class AchievementService {
     } catch (error) {
       console.error("💥 Error updating user progress:", error);
       return {
+        newAchievements: [],
         xpGained: 0,
         leveledUp: false,
-        newAchievements: [],
-        streakUpdate: null,
       };
     }
   }

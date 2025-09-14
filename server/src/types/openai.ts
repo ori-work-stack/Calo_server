@@ -1,4 +1,4 @@
-type Ingredient = {
+export interface Ingredient {
   protein: number;
   carbs: number;
   fat: number;
@@ -26,7 +26,7 @@ type Ingredient = {
   fiber_g?: number;
   sugar_g?: number;
   sodium_mg?: number;
-};
+}
 
 export interface MealAnalysisResult {
   recommendations: string;

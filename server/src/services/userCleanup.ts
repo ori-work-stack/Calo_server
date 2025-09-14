@@ -68,7 +68,9 @@ export class UserCleanupService {
       // Find FREE users whose questionnaire data is older than 7 days
       const freeUsersToCleanup = await prisma.user.findMany({
         where: {
-          subscription_type: "FREE",
+          subscription_type: {
+            equals: "FREE",
+          },
           is_questionnaire_completed: true,
           created_at: {
             // Changed from updated_at to created_at

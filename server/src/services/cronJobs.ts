@@ -70,7 +70,9 @@ export class CronJobService {
             {
               dailyGoals: {
                 none: {
-                  date: todayString,
+                  date: {
+                    equals: new Date(todayString),
+                  },
                 },
               },
             },
