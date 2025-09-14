@@ -189,16 +189,28 @@
   // Add a test endpoint to manually trigger daily goals creation
   apiRouter.post("/test/create-daily-goals", async (req, res) => {
     try {
-      console.log("🧪 Test endpoint: Creating daily goals for all users");
+      console.log("🧪 TEST ENDPOINT: Creating daily goals for all users");
       const { EnhancedDailyGoalsService } = await import("./services/database/dailyGoals");
-      const result = await EnhancedDailyGoalsService.forceCreateGoalsForAllUsers();
+      
+      // First try the regular creation method
+      console.log("🔄 Trying regular creation method...");
+      let result = await EnhancedDailyGoalsService.createDailyGoalsForAllUsers();
+      
+      // If no goals were created, try force creation
+      if (result.created === 0 && result.updated === 0) {
+        console.log("🚨 Regular method created 0 goals, trying FORCE method...");
+        result = await EnhancedDailyGoalsService.forceCreateGoalsForAllUsers();
+      }
+      
+      console.log("📊 Final test result:", result);
+      
       res.json({
         success: true,
-        message: "Daily goals creation test completed",
+        message: `Test completed: ${result.created} created, ${result.updated} updated, ${result.skipped} skipped`,
         data: result
       });
     } catch (error) {
-      console.error("Test endpoint error:", error);
+      console.error("💥 Test endpoint error:", error);
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Unknown error"

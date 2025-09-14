@@ -107,15 +107,16 @@ router.post("/generate-all", authenticateToken, async (req: AuthRequest, res) =>
 // POST /api/daily-goals/force-all - Force create goals for ALL users (testing)
 router.post("/force-all", authenticateToken, async (req: AuthRequest, res) => {
   try {
-    console.log("🚨 FORCE creating daily goals for ALL users (testing mode)");
+    console.log("🚨 FORCE creating daily goals for ALL users");
 
-    // Force create goals for all users
     const result = await EnhancedDailyGoalsService.forceCreateGoalsForAllUsers();
+    
+    console.log("📊 Force creation result:", result);
 
     const response: ApiResponse = {
       success: true,
       data: result,
-      message: `Force created goals: ${result.created} created, ${result.updated} updated`,
+      message: `Goals processed: ${result.created} created, ${result.updated} updated, ${result.skipped} skipped`,
       timestamp: new Date().toISOString()
     };
 
