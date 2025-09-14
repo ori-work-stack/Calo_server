@@ -57,36 +57,11 @@ router.put("/", authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.user.user_id;
     
-    console.log("🔄 Manual daily goals creation for user:", userId);
+    console.log("🔄 Force creating daily goals for user:", userId);
     
-    // Force create new daily goals for today
-    const today = new Date().toISOString().split('T')[0];
-    
-    // Check if goals already exist for today
-    const existingGoals = await prisma.dailyGoal.findFirst({
-      where: {
-        user_id: userId,
-        date: new Date(today)
-      }
-    });
-    
-    let goals;
-    if (existingGoals) {
-      console.log("📊 Daily goals already exist for today, returning existing");
-      goals = {
-        calories: Number(existingGoals.calories),
-        protein_g: Number(existingGoals.protein_g),
-        carbs_g: Number(existingGoals.carbs_g),
-        fats_g: Number(existingGoals.fats_g),
-        fiber_g: Number(existingGoals.fiber_g),
-        sodium_mg: Number(existingGoals.sodium_mg),
-        sugar_g: Number(existingGoals.sugar_g),
-        water_ml: Number(existingGoals.water_ml)
-      };
-    } else {
-      console.log("📊 Creating new daily goals for today");
-      goals = await DailyGoalsService.createOrUpdateDailyGoals(userId);
-    }
+    // Use the enhanced service to force create goals
+    const { EnhancedDailyGoalsService } = await import("../services/database/dailyGoals");
+    const goals = await EnhancedDailyGoalsService.forceCreateDailyGoalsForUser(userId);
 
     res.json({
       success: true,

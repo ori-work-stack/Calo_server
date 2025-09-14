@@ -58,20 +58,52 @@ router.post("/generate", authenticateToken, async (req: AuthRequest, res) => {
     const userId = req.user.user_id;
     console.log("🔄 Manual daily goals generation for user:", userId);
 
-    // Check database health first
-    const health = await DatabaseOptimizationService.checkDatabaseHealth();
-    if (health.status === 'critical') {
-      console.log("🚨 Database in critical state, performing cleanup...");
-      await DatabaseOptimizationService.performIntelligentCleanup();
-    }
-
-    // Generate goals for this user
-    const goals = await EnhancedDailyGoalsService.getUserDailyGoals(userId);
+    // Force create goals for this specific user
+    const goals = await EnhancedDailyGoalsService.forceCreateDailyGoalsForUser(userId);
 
     const response: ApiResponse = {
       success: true,
       data: goals,
       message: "Daily goals generated successfully",
+      timestamp: new Date().toISOString()
+    };
+
+    res.json(response);
+
+  } catch (error) {
+    console.error("Error generating daily goals:", error);
+    
+    const errorResponse: ApiResponse = {
+      success: false,
+      error: "Failed to generate daily goals",
+      details: error instanceof Error ? error.message : "Unknown error",
+      timestamp: new Date().toISOString()
+    };
+
+    res.status(500).json(errorResponse);
+  }
+});
+
+// POST /api/daily-goals/generate-all - Generate goals for all users (admin only)
+router.post("/generate-all", authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    // Only allow admin users to trigger this
+    if (req.user.subscription_type !== 'GOLD') {
+      return res.status(403).json({
+        success: false,
+        error: "Insufficient permissions"
+      });
+    }
+
+    console.log("🔄 Manual daily goals generation for ALL users");
+
+    // Generate goals for all users
+    const result = await EnhancedDailyGoalsService.createDailyGoalsForAllUsers();
+
+    const response: ApiResponse = {
+      success: true,
+      data: result,
+      message: `Generated goals for ${result.created} users`,
       timestamp: new Date().toISOString()
     };
 

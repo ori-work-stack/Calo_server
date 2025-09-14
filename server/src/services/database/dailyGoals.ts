@@ -144,13 +144,26 @@ export class EnhancedDailyGoalsService {
    */
   private static calculatePersonalizedGoals(questionnaire: any): NutritionGoals {
     // Default values
-    let baseCalories = 2000;
-    let baseProtein = 120;
-    let baseCarbs = 250;
-    let baseFats = 70;
-    let baseWaterMl = 2500;
+    let calories = 2000;
+    let protein_g = 120;
+    let carbs_g = 250;
+    let fats_g = 70;
+    let water_ml = 2500;
+    let fiber_g = 25;
+    let sodium_mg = 2300;
+    let sugar_g = 50;
+
+    console.log("🧮 Calculating goals with questionnaire:", !!questionnaire);
 
     if (questionnaire) {
+      console.log("📋 Using questionnaire data:", {
+        age: questionnaire.age,
+        weight: questionnaire.weight_kg,
+        height: questionnaire.height_cm,
+        goal: questionnaire.main_goal,
+        activity: questionnaire.physical_activity_level
+      });
+
       // Calculate BMR using Mifflin-St Jeor equation (more accurate)
       const weight = questionnaire.weight_kg || 70;
       const height = questionnaire.height_cm || 170;
@@ -176,42 +189,110 @@ export class EnhancedDailyGoalsService {
       const activityLevel = questionnaire.physical_activity_level || 'MODERATE';
       const tdee = bmr * (activityMultipliers[activityLevel] || 1.55);
 
+      console.log("🔢 BMR calculation:", { bmr: Math.round(bmr), tdee: Math.round(tdee) });
+
       // Adjust based on goal
       switch (questionnaire.main_goal) {
         case 'WEIGHT_LOSS':
-          baseCalories = Math.round(tdee - 500); // 500 calorie deficit
+          calories = Math.round(tdee - 500); // 500 calorie deficit
           break;
         case 'WEIGHT_GAIN':
-          baseCalories = Math.round(tdee + 300); // 300 calorie surplus
+          calories = Math.round(tdee + 300); // 300 calorie surplus
           break;
         case 'SPORTS_PERFORMANCE':
-          baseCalories = Math.round(tdee + 200); // Slight surplus for performance
+          calories = Math.round(tdee + 200); // Slight surplus for performance
           break;
         default:
-          baseCalories = Math.round(tdee);
+          calories = Math.round(tdee);
       }
 
       // Calculate macros based on goal and preferences
       if (questionnaire.main_goal === 'SPORTS_PERFORMANCE') {
-        baseProtein = Math.round(weight * 2.0); // Higher protein for athletes
-        baseCarbs = Math.round((baseCalories * 0.55) / 4); // 55% carbs for performance
-        baseFats = Math.round((baseCalories * 0.25) / 9); // 25% fats
+        protein_g = Math.round(weight * 2.0); // Higher protein for athletes
+        carbs_g = Math.round((calories * 0.55) / 4); // 55% carbs for performance
+        fats_g = Math.round((calories * 0.25) / 9); // 25% fats
       } else if (questionnaire.dietary_style?.toLowerCase().includes('keto')) {
-        baseProtein = Math.round(weight * 1.6);
-        baseCarbs = Math.round((baseCalories * 0.05) / 4); // 5% carbs for keto
-        baseFats = Math.round((baseCalories * 0.75) / 9); // 75% fats
+        protein_g = Math.round(weight * 1.6);
+        carbs_g = Math.round((calories * 0.05) / 4); // 5% carbs for keto
+        fats_g = Math.round((calories * 0.75) / 9); // 75% fats
       } else {
-        baseProtein = Math.round(weight * 1.6); // Standard protein
-        baseCarbs = Math.round((baseCalories * 0.45) / 4); // 45% carbs
-        baseFats = Math.round((baseCalories * 0.30) / 9); // 30% fats
+        protein_g = Math.round(weight * 1.6); // Standard protein
+        carbs_g = Math.round((calories * 0.45) / 4); // 45% carbs
+        fats_g = Math.round((calories * 0.30) / 9); // 30% fats
       }
 
       // Water based on weight and activity
-      baseWaterMl = Math.round(weight * 35);
+      water_ml = Math.round(weight * 35);
       if (activityLevel === 'HIGH') {
-        baseWaterMl += 500; // Extra water for high activity
+        water_ml += 500; // Extra water for high activity
       }
+
+      // Adjust fiber based on calorie intake
+      fiber_g = Math.round(calories / 80); // Roughly 1g fiber per 80 calories
+      
+      // Adjust sugar limit based on calories
+      sugar_g = Math.round(calories * 0.1 / 4); // 10% of calories from sugar max
     }
+
+    const finalGoals = {
+      calories: Math.max(1200, calories), // Minimum 1200 calories
+      protein_g,
+      carbs_g,
+      fats_g,
+      fiber_g,
+      water_ml,
+      sodium_mg,
+      sugar_g
+    };
+
+    console.log("🎯 Final calculated goals:", finalGoals);
+    return finalGoals;
+  }
+
+  /**
+   * Force create daily goals for a specific user (for testing/debugging)
+   */
+  static async forceCreateDailyGoalsForUser(userId: string): Promise<NutritionGoals> {
+    try {
+      console.log(`🔄 Force creating daily goals for user: ${userId}`);
+
+      const user = await prisma.user.findUnique({
+        where: { user_id: userId },
+        include: {
+          questionnaires: {
+            orderBy: { date_completed: 'desc' },
+            take: 1
+          }
+        }
+      });
+
+      if (!user) {
+        throw new Error("User not found");
+      }
+
+      const goals = this.calculatePersonalizedGoals(user.questionnaires[0]);
+      const today = new Date().toISOString().split('T')[0];
+      const todayDate = new Date(today);
+
+      const createdGoals = await prisma.dailyGoal.upsert({
+        where: {
+          user_id_date: {
+            user_id: userId,
+            date: todayDate
+          }
+        },
+        update: {
+          ...goals,
+          updated_at: new Date()
+        },
+        create: {
+          user_id: userId,
+          date: todayDate,
+          ...goals
+        }
+      });
+
+      console.log(`✅ Force created daily goals for user: ${userId}`, createdGoals);
 
     return {
       calories: Math.max(1200, baseCalories), // Minimum 1200 calories
@@ -260,15 +341,20 @@ export class EnhancedDailyGoalsService {
       console.error("Error getting user daily goals:", error);
       // Return safe defaults
       return {
-        calories: 2000,
-        protein_g: 150,
-        carbs_g: 250,
-        fats_g: 67,
-        fiber_g: 25,
-        sodium_mg: 2300,
-        sugar_g: 50,
-        water_ml: 2500
+        calories: Number(createdGoals.calories),
+        protein_g: Number(createdGoals.protein_g),
+        carbs_g: Number(createdGoals.carbs_g),
+        fats_g: Number(createdGoals.fats_g),
+        fiber_g: Number(createdGoals.fiber_g),
+        sodium_mg: Number(createdGoals.sodium_mg),
+        sugar_g: Number(createdGoals.sugar_g),
+        water_ml: Number(createdGoals.water_ml)
       };
+
+    } catch (error) {
+      console.error(`Error force creating daily goals for user ${userId}:`, error);
+      throw error;
+    }
     }
   }
 

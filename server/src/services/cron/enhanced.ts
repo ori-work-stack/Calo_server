@@ -166,22 +166,20 @@ export class EnhancedCronJobService {
       const goalsResult = await EnhancedDailyGoalsService.createDailyGoalsForAllUsers();
       console.log("📊 Daily goals result:", goalsResult);
       
-      // 3.5. Force create goals for all users if none were created
-      if (goalsResult.created === 0) {
-        console.log("🔄 No goals created by enhanced service, trying legacy service...");
-        const { DailyGoalsService } = await import("../dailyGoal");
+      // 3.5. If no goals were created, try to create for at least one test user
+      if (goalsResult.created === 0 && goalsResult.errors.length === 0) {
+        console.log("🔄 No goals created, trying to create for first available user...");
         
-        // Get all users and create goals for them
-        const allUsers = await prisma.user.findMany({
-          select: { user_id: true }
+        const firstUser = await prisma.user.findFirst({
+          select: { user_id: true, email: true }
         });
         
-        for (const user of allUsers) {
+        if (firstUser) {
           try {
-            await DailyGoalsService.createOrUpdateDailyGoals(user.user_id);
-            console.log(`✅ Created legacy daily goals for user: ${user.user_id}`);
+            const testGoals = await EnhancedDailyGoalsService.forceCreateDailyGoalsForUser(firstUser.user_id);
+            console.log(`✅ Test goals created for user: ${firstUser.user_id}`, testGoals);
           } catch (error) {
-            console.error(`❌ Failed to create legacy goals for user ${user.user_id}:`, error);
+            console.error(`❌ Failed to create test goals:`, error);
           }
         }
       }
@@ -225,6 +223,7 @@ export class EnhancedCronJobService {
    */
   private static async createDailyGoalsForAllUsers() {
     try {
+      console.log("🔄 Cron job: Creating daily goals for all users...");
       return await EnhancedDailyGoalsService.createDailyGoalsForAllUsers();
     } catch (error) {
       console.error("Error in daily goals creation:", error);
