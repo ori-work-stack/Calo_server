@@ -17,7 +17,7 @@ export class EnhancedCronJobService {
     cron.schedule("30 0 * * *", async () => {
       await this.runJobSafely('daily-goals', async () => {
         console.log("📊 Running daily goals creation at 00:30 AM");
-        const result = await this.createDailyGoalsForAllUsers();
+        const result = await EnhancedDailyGoalsService.createDailyGoalsForAllUsers();
         console.log("✅ Daily goals creation completed:", result);
       });
     });
@@ -26,7 +26,7 @@ export class EnhancedCronJobService {
     cron.schedule("0 6 * * *", async () => {
       await this.runJobSafely('ai-recommendations', async () => {
         console.log("🤖 Running AI recommendations generation at 6:00 AM");
-        const result = await this.generateRecommendationsForAllUsers();
+        const result = await EnhancedAIRecommendationService.generateRecommendationsForAllUsers();
         console.log("✅ AI recommendations completed:", result);
       });
     });
@@ -122,9 +122,9 @@ export class EnhancedCronJobService {
         await DatabaseOptimizationService.performIntelligentCleanup();
       }
 
-      // 3. Create missing daily goals for today
-      console.log("📊 Creating missing daily goals...");
-      const goalsResult = await EnhancedDailyGoalsService.createDailyGoalsForAllUsers();
+      // 3. Force create daily goals for all users (testing mode)
+      console.log("📊 Force creating daily goals for all users...");
+      const goalsResult = await EnhancedDailyGoalsService.forceCreateGoalsForAllUsers();
       console.log("✅ Daily goals startup task completed:", goalsResult);
 
       // 4. Generate missing AI recommendations (if OpenAI is available)
@@ -162,27 +162,10 @@ export class EnhancedCronJobService {
       // 2. Optimize database
       await DatabaseOptimizationService.optimizeDatabase();
 
-      // 3. Create daily goals
-      const goalsResult = await EnhancedDailyGoalsService.createDailyGoalsForAllUsers();
+      // 3. Force create daily goals for ALL users
+      console.log("📊 Force creating daily goals for ALL users...");
+      const goalsResult = await EnhancedDailyGoalsService.forceCreateGoalsForAllUsers();
       console.log("📊 Daily goals result:", goalsResult);
-      
-      // 3.5. If no goals were created, try to create for at least one test user
-      if (goalsResult.created === 0 && goalsResult.errors.length === 0) {
-        console.log("🔄 No goals created, trying to create for first available user...");
-        
-        const firstUser = await prisma.user.findFirst({
-          select: { user_id: true, email: true }
-        });
-        
-        if (firstUser) {
-          try {
-            const testGoals = await EnhancedDailyGoalsService.forceCreateDailyGoalsForUser(firstUser.user_id);
-            console.log(`✅ Test goals created for user: ${firstUser.user_id}`, testGoals);
-          } catch (error) {
-            console.error(`❌ Failed to create test goals:`, error);
-          }
-        }
-      }
 
       // 4. Generate AI recommendations
       if (process.env.OPENAI_API_KEY) {
@@ -216,40 +199,5 @@ export class EnhancedCronJobService {
         'health-check': 'Every 2 hours'
       }
     };
-  }
-
-  /**
-   * Create daily goals for all users (wrapper method)
-   */
-  private static async createDailyGoalsForAllUsers() {
-    try {
-      console.log("🔄 Cron job: Creating daily goals for all users...");
-      return await EnhancedDailyGoalsService.createDailyGoalsForAllUsers();
-    } catch (error) {
-      console.error("Error in daily goals creation:", error);
-      return {
-        created: 0,
-        updated: 0,
-        skipped: 0,
-        errors: [error instanceof Error ? error.message : 'Unknown error']
-      };
-    }
-  }
-
-  /**
-   * Generate recommendations for all users (wrapper method)
-   */
-  private static async generateRecommendationsForAllUsers() {
-    try {
-      return await EnhancedAIRecommendationService.generateRecommendationsForAllUsers();
-    } catch (error) {
-      console.error("Error in AI recommendations generation:", error);
-      return {
-        created: 0,
-        updated: 0,
-        skipped: 0,
-        errors: [error instanceof Error ? error.message : 'Unknown error']
-      };
-    }
   }
 }

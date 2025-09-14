@@ -669,6 +669,8 @@ model DailyGoal {
 
   @@unique([user_id, date])
   @@index([user_id, date])
+  @@index([date])
+  @@index([user_id])
 }
 
 model MealCompletion {

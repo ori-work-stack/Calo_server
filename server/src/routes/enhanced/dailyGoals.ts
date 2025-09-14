@@ -13,25 +13,14 @@ router.get("/", authenticateToken, async (req: AuthRequest, res) => {
     const userId = req.user.user_id;
     console.log("📊 Enhanced daily goals request for user:", userId);
 
-    // Check for duplicates first
-    const today = new Date().toISOString().split('T')[0];
-    const duplicateCheck = await DatabaseOptimizationService.checkForDuplicates(userId, today);
-
-    let goals;
-    if (duplicateCheck.hasDailyGoal) {
-      // Get existing goals
-      goals = await EnhancedDailyGoalsService.getUserDailyGoals(userId);
-    } else {
-      // Create new goals
-      goals = await EnhancedDailyGoalsService.getUserDailyGoals(userId);
-    }
+    // Get user's daily goals
+    const goals = await EnhancedDailyGoalsService.getUserDailyGoals(userId);
 
     const response: ApiResponse = {
       success: true,
       data: {
         ...goals,
-        date: today,
-        created_today: !duplicateCheck.hasDailyGoal
+        date: new Date().toISOString().split('T')[0]
       },
       timestamp: new Date().toISOString()
     };
@@ -84,17 +73,9 @@ router.post("/generate", authenticateToken, async (req: AuthRequest, res) => {
   }
 });
 
-// POST /api/daily-goals/generate-all - Generate goals for all users (admin only)
+// POST /api/daily-goals/generate-all - Generate goals for all users
 router.post("/generate-all", authenticateToken, async (req: AuthRequest, res) => {
   try {
-    // Only allow admin users to trigger this
-    if (req.user.subscription_type !== 'GOLD') {
-      return res.status(403).json({
-        success: false,
-        error: "Insufficient permissions"
-      });
-    }
-
     console.log("🔄 Manual daily goals generation for ALL users");
 
     // Generate goals for all users
@@ -103,18 +84,49 @@ router.post("/generate-all", authenticateToken, async (req: AuthRequest, res) =>
     const response: ApiResponse = {
       success: true,
       data: result,
-      message: `Generated goals for ${result.created} users`,
+      message: `Generated goals: ${result.created} created, ${result.updated} updated, ${result.skipped} skipped`,
       timestamp: new Date().toISOString()
     };
 
     res.json(response);
 
   } catch (error) {
-    console.error("Error generating daily goals:", error);
+    console.error("Error generating daily goals for all users:", error);
     
     const errorResponse: ApiResponse = {
       success: false,
       error: "Failed to generate daily goals",
+      details: error instanceof Error ? error.message : "Unknown error",
+      timestamp: new Date().toISOString()
+    };
+
+    res.status(500).json(errorResponse);
+  }
+});
+
+// POST /api/daily-goals/force-all - Force create goals for ALL users (testing)
+router.post("/force-all", authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    console.log("🚨 FORCE creating daily goals for ALL users (testing mode)");
+
+    // Force create goals for all users
+    const result = await EnhancedDailyGoalsService.forceCreateGoalsForAllUsers();
+
+    const response: ApiResponse = {
+      success: true,
+      data: result,
+      message: `Force created goals: ${result.created} created, ${result.updated} updated`,
+      timestamp: new Date().toISOString()
+    };
+
+    res.json(response);
+
+  } catch (error) {
+    console.error("Error force creating daily goals:", error);
+    
+    const errorResponse: ApiResponse = {
+      success: false,
+      error: "Failed to force create daily goals",
       details: error instanceof Error ? error.message : "Unknown error",
       timestamp: new Date().toISOString()
     };

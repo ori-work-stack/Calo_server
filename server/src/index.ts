@@ -186,6 +186,26 @@ apiRouter.use("/database", enhancedDatabaseRoutes);
 apiRouter.use("/", achievementsRouter);
 apiRouter.use("/meal-completions", mealCompletionRouter);
 
+// Add a test endpoint to manually trigger daily goals creation
+apiRouter.post("/test/create-daily-goals", async (req, res) => {
+  try {
+    console.log("🧪 Test endpoint: Creating daily goals for all users");
+    const { EnhancedDailyGoalsService } = await import("./services/database/dailyGoals");
+    const result = await EnhancedDailyGoalsService.forceCreateGoalsForAllUsers();
+    res.json({
+      success: true,
+      message: "Daily goals creation test completed",
+      data: result
+    });
+  } catch (error) {
+    console.error("Test endpoint error:", error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+});
+
 app.use("/api", apiRouter);
 
 // 404 handler for undefined routes
