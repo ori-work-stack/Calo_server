@@ -67,6 +67,34 @@ export interface DailyBreakdown {
   meal_quality?: number;
 }
 
+export interface StatisticsData {
+  level: number;
+  currentXP: number;
+  totalPoints: number;
+  currentStreak: number;
+  bestStreak: number;
+  weeklyStreak: number;
+  perfectDays: number;
+  dailyGoalDays: number;
+  totalDays: number;
+  averageCalories: number;
+  averageProtein: number;
+  averageCarbs: number;
+  averageFats: number;
+  averageFiber: number;
+  averageSugar: number;
+  averageSodium: number;
+  averageFluids: number;
+  achievements: any[];
+  dailyBreakdown: any[];
+  successfulDays: number;
+  averageCompletion: number;
+  happyDays: number;
+  highEnergyDays: number;
+  satisfiedDays: number;
+  averageMealQuality: number;
+}
+
 interface PeriodStatistics {
   period_type: string;
   start_date: string;
@@ -78,6 +106,16 @@ interface PeriodStatistics {
   daily_averages: NutritionGoals;
   meal_count: number;
   completion_rate: number;
+  currentStreak?: number;
+  bestStreak?: number;
+  weeklyStreak?: number;
+  perfectDays?: number;
+  successfulDays?: number;
+  averageCompletion?: number;
+  happyDays?: number;
+  highEnergyDays?: number;
+  satisfiedDays?: number;
+  averageMealQuality?: number;
   averageFluids?: number;
   averageCalories?: number;
   averageProtein?: number;

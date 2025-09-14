@@ -110,6 +110,9 @@ export class EnhancedAIRecommendationService {
     }
   }
 
+  /**
+   * Generate daily recommendations for a specific user
+   */
   static async generateDailyRecommendations(
     userId: string
   ): Promise<DailyRecommendation> {
@@ -146,12 +149,145 @@ export class EnhancedAIRecommendationService {
       // Generate AI recommendations
       const aiRecommendations = await this.callAIForRecommendations({
         userId,
-        recentPerformance: recentStats,
+        recentPerformance: recentStats.data,
         yesterdayConsumption: yesterdayStats,
         dailyGoals,
         userProfile,
       });
+
+      // Save recommendations to database
+      const savedRecommendation = await this.saveRecommendation(
+        userId,
+        aiRecommendations
+      );
+
+      console.log("✅ Daily recommendations generated and saved");
+      return savedRecommendation;
+    } catch (error) {
+      console.error("💥 Error generating daily recommendations:", error);
+
+      // Return fallback recommendations if AI fails
+      return this.getFallbackRecommendations(userId);
     }
+  }
+
+  /**
+   * Get user profile for personalized recommendations
+   */
+  private static async getUserProfile(userId: string): Promise<any> {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { user_id: userId },
+        include: {
+          questionnaires: {
+            orderBy: { date_completed: "desc" },
+            take: 1,
+          },
+        },
+      });
+
+      const questionnaire = user?.questionnaires[0];
+
+      return {
+        dietary_preferences: questionnaire?.dietary_style
+          ? [questionnaire.dietary_style]
+          : [],
+        health_conditions: questionnaire?.medical_conditions || [],
+        main_goal: questionnaire?.main_goal || "WEIGHT_MAINTENANCE",
+        activity_level: questionnaire?.physical_activity_level || "MODERATE",
+        age: questionnaire?.age || 30,
+        weight_kg: questionnaire?.weight_kg || 70,
+        allergies: questionnaire?.allergies || [],
+        restrictions: questionnaire?.dietary_restrictions || [],
+      };
+    } catch (error) {
+      console.error("Error getting user profile:", error);
+      return {
+        dietary_preferences: [],
+        health_conditions: [],
+        main_goal: "WEIGHT_MAINTENANCE",
+        activity_level: "MODERATE",
+        age: 30,
+        weight_kg: 70,
+        allergies: [],
+        restrictions: [],
+      };
+    }
+  }
+
+  /**
+   * Call AI for recommendations generation
+   */
+  private static async callAIForRecommendations(data: any): Promise<AIRecommendationResponse> {
+    try {
+      const prompt = `
+You are a professional nutritionist AI assistant. Analyze the user's nutrition data and provide personalized daily recommendations.
+
+USER DATA:
+- Recent 7-day performance: ${JSON.stringify(data.recentPerformance, null, 2)}
+- Yesterday's consumption: ${JSON.stringify(data.yesterdayConsumption, null, 2)}
+- Daily goals: ${JSON.stringify(data.dailyGoals, null, 2)}
+- User profile: ${JSON.stringify(data.userProfile, null, 2)}
+
+ANALYSIS FOCUS:
+1. Goal achievement patterns (under/over consumption)
+2. Nutritional gaps or excesses
+3. Consistency in eating habits
+4. Areas for improvement
+
+Provide recommendations in this JSON format:
+{
+  "nutrition_tips": ["tip1", "tip2", "tip3"],
+  "meal_suggestions": ["suggestion1", "suggestion2"],
+  "goal_adjustments": ["adjustment1", "adjustment2"],
+  "behavioral_insights": ["insight1", "insight2"],
+  "priority_level": "low|medium|high",
+  "confidence_score": 0.85,
+  "key_focus_areas": ["area1", "area2"]
+}
+
+Be specific, actionable, and encouraging. Focus on realistic improvements.
+`;
+
+      const response = await OpenAIService.generateText(prompt, 1500);
+      return JSON.parse(response);
+    } catch (error) {
+      console.error("AI recommendation generation failed:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get fallback recommendations when AI fails
+   */
+  private static async getFallbackRecommendations(userId: string): Promise<DailyRecommendation> {
+    console.log("🆘 Using fallback recommendations");
+
+    const fallbackRecommendations: AIRecommendationResponse = {
+      nutrition_tips: [
+        "Stay hydrated by drinking 8-10 glasses of water daily",
+        "Include a variety of colorful vegetables in your meals",
+        "Aim for lean protein sources like chicken, fish, or legumes",
+      ],
+      meal_suggestions: [
+        "Start your day with a protein-rich breakfast",
+        "Include fiber-rich foods to help you feel full longer",
+      ],
+      goal_adjustments: [
+        "Track your meals consistently for better insights",
+        "Focus on portion control for better goal achievement",
+      ],
+      behavioral_insights: [
+        "Consistency in meal timing can improve your results",
+        "Planning meals ahead helps maintain nutritional balance",
+      ],
+      priority_level: "medium",
+      confidence_score: 0.6,
+      key_focus_areas: ["hydration", "consistency"],
+    };
+
+    return this.saveRecommendation(userId, fallbackRecommendations);
+  }
   }
 
   /**
@@ -418,7 +554,7 @@ Be specific, actionable, and encouraging. Consider the user's allergies and diet
         data: {
           user_id: userId,
           date: today,
-          recommendations: recommendations as any,
+          recommendations: recommendations,
           priority_level: recommendations.priority_level,
           confidence_score: recommendations.confidence_score,
           based_on: {

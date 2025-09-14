@@ -457,6 +457,7 @@ export class StatisticsService {
         period === "week" ||
         period === "month"
       ) {
+        // Add missing properties for PeriodStatistics
         const statisticsData = {
           period_type: period,
           start_date: definedStartDate.toISOString().split("T")[0],
@@ -477,6 +478,17 @@ export class StatisticsService {
           completion_rate: Math.round(
             (periodConsumption.calories / periodGoals.calories) * 100
           ),
+          // Add missing streak and wellbeing properties
+          currentStreak: userStats.currentStreak,
+          bestStreak: userStats.bestStreak,
+          weeklyStreak: Math.floor(userStats.currentStreak / 7),
+          perfectDays: wellbeingMetrics.perfectDays,
+          successfulDays: streaks.successfulDays,
+          averageCompletion: streaks.averageCompletion,
+          happyDays: wellbeingMetrics.happyDays,
+          highEnergyDays: wellbeingMetrics.highEnergyDays,
+          satisfiedDays: wellbeingMetrics.satisfiedDays,
+          averageMealQuality: wellbeingMetrics.averageMealQuality,
           averageFluids: averages.fluids,
           averageCalories: averages.calories,
           averageProtein: averages.protein,
@@ -497,6 +509,7 @@ export class StatisticsService {
         currentXP: user?.current_xp || 0,
         totalPoints: user?.total_points || 0,
         currentStreak: userStats.currentStreak,
+        bestStreak: userStats.bestStreak,
         weeklyStreak: Math.floor(userStats.currentStreak / 7),
         perfectDays: wellbeingMetrics.perfectDays,
         dailyGoalDays: dailyGoals.length,
@@ -516,7 +529,6 @@ export class StatisticsService {
         dailyBreakdown: dailyBreakdown || [],
         successfulDays: streaks.successfulDays || 0,
         averageCompletion: streaks.averageCompletion || 0,
-        bestStreak: userStats.bestStreak || 0,
         happyDays: wellbeingMetrics.happyDays || 0,
         highEnergyDays: wellbeingMetrics.highEnergyDays || 0,
         satisfiedDays: wellbeingMetrics.satisfiedDays || 0,
