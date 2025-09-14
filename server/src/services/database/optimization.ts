@@ -1,8 +1,8 @@
 import { PrismaClient } from "@prisma/client";
 import { DatabaseHealth, CleanupResult } from "../../types/database";
+import { prisma } from "../../lib/database";
 
 export class DatabaseOptimizationService {
-  private static prisma = new PrismaClient();
 
   /**
    * Comprehensive database health check
@@ -12,7 +12,7 @@ export class DatabaseOptimizationService {
       console.log("🔍 Checking database health...");
 
       // Check connection
-      await this.prisma.$connect();
+      await prisma.$connect();
 
       // Get database size and statistics
       const [
@@ -22,18 +22,18 @@ export class DatabaseOptimizationService {
         recommendationCount,
         chatMessageCount
       ] = await Promise.all([
-        this.prisma.user.count(),
-        this.prisma.meal.count(),
-        this.prisma.session.count(),
-        this.prisma.aiRecommendation.count(),
-        this.prisma.chatMessage.count()
+        prisma.user.count(),
+        prisma.meal.count(),
+        prisma.session.count(),
+        prisma.aiRecommendation.count(),
+        prisma.chatMessage.count()
       ]);
 
       const totalRecords = userCount + mealCount + sessionCount + recommendationCount + chatMessageCount;
       const estimatedSize = totalRecords * 0.001; // Rough estimate in MB
 
       // Check for expired sessions
-      const expiredSessions = await this.prisma.session.count({
+      const expiredSessions = await prisma.session.count({
         where: {
           expiresAt: {
             lt: new Date()
@@ -42,7 +42,7 @@ export class DatabaseOptimizationService {
       });
 
       // Check for old recommendations
-      const oldRecommendations = await this.prisma.aiRecommendation.count({
+      const oldRecommendations = await prisma.aiRecommendation.count({
         where: {
           created_at: {
             lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // 30 days ago
@@ -94,7 +94,7 @@ export class DatabaseOptimizationService {
     const errors: string[] = [];
 
     try {
-      await this.prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx) => {
         // 1. Clean expired sessions
         const expiredSessionsResult = await tx.session.deleteMany({
           where: {
@@ -196,11 +196,11 @@ export class DatabaseOptimizationService {
       console.log("⚡ Optimizing database performance...");
 
       // Run ANALYZE to update query planner statistics
-      await this.prisma.$executeRaw`ANALYZE;`;
+      await prisma.$executeRaw`ANALYZE;`;
 
       // Vacuum to reclaim space (PostgreSQL)
       try {
-        await this.prisma.$executeRaw`VACUUM;`;
+        await prisma.$executeRaw`VACUUM;`;
         console.log("✅ Database vacuum completed");
       } catch (error) {
         console.log("ℹ️ Vacuum not supported or failed (normal for some databases)");
@@ -222,13 +222,13 @@ export class DatabaseOptimizationService {
   }> {
     try {
       const [dailyGoal, recommendation] = await Promise.all([
-        this.prisma.dailyGoal.findFirst({
+        prisma.dailyGoal.findFirst({
           where: {
             user_id: userId,
             date: new Date(date)
           }
         }),
-        this.prisma.aiRecommendation.findFirst({
+        prisma.aiRecommendation.findFirst({
           where: {
             user_id: userId,
             date: date
@@ -257,7 +257,7 @@ export class DatabaseOptimizationService {
       console.log("🚨 Starting emergency database recovery...");
 
       // 1. Test basic connectivity
-      await this.prisma.$connect();
+      await prisma.$connect();
       console.log("✅ Database connection restored");
 
       // 2. Perform aggressive cleanup
@@ -269,9 +269,9 @@ export class DatabaseOptimizationService {
 
       // 4. Verify critical tables
       const criticalCounts = await Promise.all([
-        this.prisma.user.count(),
-        this.prisma.meal.count(),
-        this.prisma.dailyGoal.count()
+        prisma.user.count(),
+        prisma.meal.count(),
+        prisma.dailyGoal.count()
       ]);
 
       console.log("📊 Critical table counts:", {

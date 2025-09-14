@@ -60,7 +60,7 @@ export class OpenAIService {
       }
 
       const response = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-4",
         messages,
         max_tokens: 2000,
         temperature: 0.3
@@ -116,7 +116,7 @@ Please provide the updated analysis in the same JSON format, incorporating the u
 Return only the JSON object with updated values.`;
 
       const response = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-4",
         messages: [
           { role: "system", content: "You are a nutrition expert updating meal analysis based on user feedback." },
           { role: "user", content: prompt }
@@ -152,7 +152,7 @@ Return only the JSON object with updated values.`;
       }
 
       const response = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-4",
         messages: [
           { role: "user", content: prompt }
         ],

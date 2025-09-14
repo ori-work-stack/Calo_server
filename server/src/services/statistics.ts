@@ -457,7 +457,7 @@ export class StatisticsService {
         period === "week" ||
         period === "month"
       ) {
-        const statisticsData: PeriodStatistics = {
+        const statisticsData = {
           period_type: period,
           start_date: definedStartDate.toISOString().split("T")[0],
           end_date: definedEndDate.toISOString().split("T")[0],
@@ -492,7 +492,7 @@ export class StatisticsService {
         return { success: true, data: statisticsData };
       }
 
-      const statisticsData: StatisticsData = {
+      const statisticsData = {
         level: user?.level || 1,
         currentXP: user?.current_xp || 0,
         totalPoints: user?.total_points || 0,

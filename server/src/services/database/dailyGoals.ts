@@ -281,7 +281,7 @@ export class EnhancedDailyGoalsService {
   /**
    * Create daily goals for a specific user
    */
-  private static async createDailyGoalsForUser(userId: string): Promise<NutritionGoals> {
+  private static async createDailyGoalsForUser(userId: string): Promise<any> {
     try {
       const user = await prisma.user.findUnique({
         where: { user_id: userId },
@@ -300,7 +300,7 @@ export class EnhancedDailyGoalsService {
       const goals = this.calculatePersonalizedGoals(user.questionnaires[0]);
       const today = new Date().toISOString().split('T')[0];
 
-      await prisma.dailyGoal.create({
+      const createdGoals = await prisma.dailyGoal.create({
         data: {
           user_id: userId,
           date: new Date(today),
@@ -309,7 +309,7 @@ export class EnhancedDailyGoalsService {
       });
 
       console.log(`✅ Created daily goals for user: ${userId}`);
-      return goals;
+      return createdGoals;
 
     } catch (error) {
       console.error(`Error creating daily goals for user ${userId}:`, error);

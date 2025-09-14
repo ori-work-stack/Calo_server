@@ -17,7 +17,7 @@ export class EnhancedCronJobService {
     cron.schedule("30 0 * * *", async () => {
       await this.runJobSafely('daily-goals', async () => {
         console.log("📊 Running daily goals creation at 00:30 AM");
-        const result = await EnhancedDailyGoalsService.createDailyGoalsForAllUsers();
+        const result = await this.createDailyGoalsForAllUsers();
         console.log("✅ Daily goals creation completed:", result);
       });
     });
@@ -26,7 +26,7 @@ export class EnhancedCronJobService {
     cron.schedule("0 6 * * *", async () => {
       await this.runJobSafely('ai-recommendations', async () => {
         console.log("🤖 Running AI recommendations generation at 6:00 AM");
-        const result = await EnhancedAIRecommendationService.generateRecommendationsForAllUsers();
+        const result = await this.generateRecommendationsForAllUsers();
         console.log("✅ AI recommendations completed:", result);
       });
     });
@@ -198,5 +198,39 @@ export class EnhancedCronJobService {
         'health-check': 'Every 2 hours'
       }
     };
+  }
+
+  /**
+   * Create daily goals for all users (wrapper method)
+   */
+  private static async createDailyGoalsForAllUsers() {
+    try {
+      return await EnhancedDailyGoalsService.createDailyGoalsForAllUsers();
+    } catch (error) {
+      console.error("Error in daily goals creation:", error);
+      return {
+        created: 0,
+        updated: 0,
+        skipped: 0,
+        errors: [error instanceof Error ? error.message : 'Unknown error']
+      };
+    }
+  }
+
+  /**
+   * Generate recommendations for all users (wrapper method)
+   */
+  private static async generateRecommendationsForAllUsers() {
+    try {
+      return await EnhancedAIRecommendationService.generateRecommendationsForAllUsers();
+    } catch (error) {
+      console.error("Error in AI recommendations generation:", error);
+      return {
+        created: 0,
+        updated: 0,
+        skipped: 0,
+        errors: [error instanceof Error ? error.message : 'Unknown error']
+      };
+    }
   }
 }

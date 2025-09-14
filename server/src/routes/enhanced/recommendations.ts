@@ -3,6 +3,7 @@ import { authenticateToken, AuthRequest } from "../../middleware/auth";
 import { EnhancedAIRecommendationService } from "../../services/database/aiRecommendations";
 import { DatabaseOptimizationService } from "../../services/database/optimization";
 import { ApiResponse } from "../../types/api";
+import { prisma } from "../../lib/database";
 
 const router = Router();
 

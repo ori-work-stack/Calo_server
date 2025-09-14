@@ -2,7 +2,7 @@ import { prisma } from "../../lib/database";
 import { DatabaseOptimizationService } from "./optimization";
 import { OpenAIService } from "../openai";
 import { DailyRecommendation, AIRecommendationResponse } from "../../types/recommendations";
-
+import { StatisticsService } from "../statistics";
 export interface RecommendationCreationResult {
   created: number;
   updated: number;
