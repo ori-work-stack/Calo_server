@@ -19,10 +19,11 @@ import recommendedMenuRoutes  from "./routes/recommendedMenu";
 import { calendarRoutes } from "./routes/calendar";
 import statisticsRoutes from "./routes/statistics";
 import foodScannerRoutes from "./routes/foodScanner";
-import { CronJobService } from "./services/cronJobs";
+import { EnhancedCronJobService } from "./services/cron/enhanced";
 import { UserCleanupService } from "./services/userCleanup";
-import "./services/cron";
-import { dailyGoalsRoutes } from "./routes/dailyGoal";
+import { enhancedDailyGoalsRoutes } from "./routes/enhanced/dailyGoals";
+import { enhancedRecommendationsRoutes } from "./routes/enhanced/recommendations";
+import { enhancedDatabaseRoutes } from "./routes/enhanced/database";
 import achievementsRouter from "./routes/achievements";
 import shoppingListRoutes from "./routes/shoppingLists";
 import mealCompletionRouter from "./routes/mealCompletion";
@@ -179,7 +180,9 @@ apiRouter.use("/chat", chatRoutes);
 apiRouter.use("/food-scanner", foodScannerRoutes);
 apiRouter.use("/shopping-lists", shoppingListRoutes);
 apiRouter.use("/", statisticsRoutes);
-apiRouter.use("/daily-goals", dailyGoalsRoutes);
+apiRouter.use("/daily-goals", enhancedDailyGoalsRoutes);
+apiRouter.use("/recommendations", enhancedRecommendationsRoutes);
+apiRouter.use("/database", enhancedDatabaseRoutes);
 apiRouter.use("/", achievementsRouter);
 apiRouter.use("/meal-completions", mealCompletionRouter);
 
@@ -256,12 +259,10 @@ async function startServer() {
           "Note: AI features are using mock data. Add OPENAI_API_KEY to enable real AI analysis."
         );
       }
-      // Initialize cron jobs
-      CronJobService.initializeCronJobs();
+      
+      // Initialize enhanced cron jobs
+      EnhancedCronJobService.initializeEnhancedCronJobs();
       UserCleanupService.initializeCleanupJobs();
-
-      // Create daily goals for existing users
-      CronJobService.createDailyGoalsForAllUsers();
     });
   } catch (error) {
     log.error("❌ Database connection failed:", error);
