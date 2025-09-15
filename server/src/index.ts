@@ -24,6 +24,7 @@
   import { enhancedDailyGoalsRoutes } from "./routes/enhanced/dailyGoals";
   import { enhancedRecommendationsRoutes } from "./routes/enhanced/recommendations";
   import { enhancedDatabaseRoutes } from "./routes/enhanced/database";
+ import { dailyGoalsRoutes } from "./routes/dailyGoal";
   import achievementsRouter from "./routes/achievements";
   import shoppingListRoutes from "./routes/shoppingLists";
   import mealCompletionRouter from "./routes/mealCompletion";
@@ -183,6 +184,7 @@
   apiRouter.use("/daily-goals", enhancedDailyGoalsRoutes);
   apiRouter.use("/recommendations", enhancedRecommendationsRoutes);
   apiRouter.use("/database", enhancedDatabaseRoutes);
+ apiRouter.use("/daily-goals-simple", dailyGoalsRoutes);
   apiRouter.use("/", achievementsRouter);
   apiRouter.use("/meal-completions", mealCompletionRouter);
   
@@ -190,27 +192,122 @@
   apiRouter.post("/test/create-daily-goals", async (req, res) => {
     try {
       console.log("🧪 TEST ENDPOINT: Creating daily goals for all users");
-      const { EnhancedDailyGoalsService } = await import("./services/database/dailyGoals");
-      
-      // First try the regular creation method
-      console.log("🔄 Trying regular creation method...");
-      let result = await EnhancedDailyGoalsService.createDailyGoalsForAllUsers();
-      
-      // If no goals were created, try force creation
-      if (result.created === 0 && result.updated === 0) {
-        console.log("🚨 Regular method created 0 goals, trying FORCE method...");
-        result = await EnhancedDailyGoalsService.forceCreateGoalsForAllUsers();
-      }
+     
+     // Get total users first
+     const totalUsers = await prisma.user.count();
+     console.log(`👥 TOTAL USERS IN DATABASE: ${totalUsers}`);
+     
+     // Get total goals for today
+     const today = new Date().toISOString().split('T')[0];
+     const todayDate = new Date(today + 'T00:00:00.000Z');
+     const totalTodayGoals = await prisma.dailyGoal.count({
+       where: { 
+         date: {
+           gte: todayDate,
+           lt: new Date(todayDate.getTime() + 24 * 60 * 60 * 1000)
+         }
+       }
+     });
+     console.log(`📊 EXISTING GOALS FOR TODAY: ${totalTodayGoals}`);
+     
+     // List all users
+     const allUsers = await prisma.user.findMany({
+       select: {
+         user_id: true,
+         email: true,
+         subscription_type: true
+       }
+     });
+     
+     console.log("👥 ALL USERS:");
+     allUsers.forEach((user, index) => {
+       console.log(`  ${index + 1}. ${user.user_id} (${user.email}) - ${user.subscription_type}`);
+     });
+     
+     // Force create goals for ALL users
+     console.log("🚨 FORCE creating goals for ALL users...");
+     const { EnhancedDailyGoalsService } = await import("./services/database/dailyGoals");
+     const result = await EnhancedDailyGoalsService.forceCreateGoalsForAllUsers();
       
       console.log("📊 Final test result:", result);
+     
+     // Final verification
+     const finalTodayGoals = await prisma.dailyGoal.count({
+       where: { 
+         date: {
+           gte: todayDate,
+           lt: new Date(todayDate.getTime() + 24 * 60 * 60 * 1000)
+         }
+       }
+     });
+     console.log(`📊 FINAL GOALS COUNT FOR TODAY: ${finalTodayGoals}`);
+     
+     // List all goals created today
+     const todayGoals = await prisma.dailyGoal.findMany({
+       where: { 
+         date: {
+           gte: todayDate,
+           lt: new Date(todayDate.getTime() + 24 * 60 * 60 * 1000)
+         }
+       },
+       select: {
+         id: true,
+         user_id: true,
+         calories: true,
+         created_at: true
+       }
+     });
+     
+     console.log("📋 ALL GOALS CREATED TODAY:");
+     todayGoals.forEach((goal, index) => {
+       console.log(`  ${index + 1}. ID: ${goal.id}, User: ${goal.user_id}, Calories: ${goal.calories}`);
+     });
       
       res.json({
         success: true,
-        message: `Test completed: ${result.created} created, ${result.updated} updated, ${result.skipped} skipped`,
-        data: result
+        message: `Test completed: ${result.created} created, ${result.updated} updated, ${result.skipped} skipped, ${result.errors.length} errors`,
+        data: {
+          ...result,
+          totalUsers,
+          initialTodayGoals: totalTodayGoals,
+          finalTodayGoals: finalTodayGoals,
+          allUsers: allUsers.map(u => ({ user_id: u.user_id, email: u.email })),
+          todayGoals: todayGoals
+        }
       });
     } catch (error) {
       console.error("💥 Test endpoint error:", error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+  
+  // Add simple test endpoint for single user goal creation
+  apiRouter.post("/test/create-single-goal", authenticateToken, async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user.user_id;
+      console.log("🧪 TEST: Creating daily goal for single user:", userId);
+      
+      const { EnhancedDailyGoalsService } = await import("./services/database/dailyGoals");
+      const success = await EnhancedDailyGoalsService.createDailyGoalForUser(userId);
+      
+      if (success) {
+        const goals = await EnhancedDailyGoalsService.getUserDailyGoals(userId);
+        res.json({
+          success: true,
+          data: goals,
+          message: "Daily goal created successfully for current user"
+        });
+      } else {
+        res.status(500).json({
+          success: false,
+          error: "Failed to create daily goal"
+        });
+      }
+    } catch (error) {
+      console.error("💥 Single goal test error:", error);
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Unknown error"
