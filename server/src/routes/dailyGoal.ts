@@ -91,49 +91,23 @@ router.get("/verify", authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.user.user_id;
     
-    console.log("🔍 === VERIFYING DAILY GOALS ===");
+    console.log("🔍 === VERIFYING DAILY GOALS AND DATABASE STATE ===");
     console.log("🔍 User ID:", userId);
     
-    const today = new Date();
-    const todayString = today.toISOString().split('T')[0];
-    const todayDate = new Date(todayString + 'T00:00:00.000Z');
+    // Use debug method to get complete database state
+    const debugInfo = await EnhancedDailyGoalsService.debugDatabaseState();
     
-    // Check if goals exist for today
-    const todayGoals = await prisma.dailyGoal.findFirst({
-      where: {
-        user_id: userId,
-        date: todayDate
-      }
-    });
-
-    // Get all goals for this user
-    const allUserGoals = await prisma.dailyGoal.findMany({
-      where: { user_id: userId },
-      orderBy: { date: 'desc' },
-      take: 10
-    });
-
-    // Get total goals count for today across all users
-    const totalTodayGoals = await prisma.dailyGoal.count({
-      where: { date: todayDate }
-    });
-
-    console.log("🔍 Verification results:", {
-      hasGoalsToday: !!todayGoals,
-      totalUserGoals: allUserGoals.length,
-      totalTodayGoals: totalTodayGoals
-    });
+    // Get user-specific goals
+    const userGoals = await EnhancedDailyGoalsService.getUserDailyGoals(userId);
 
     res.json({
       success: true,
       data: {
-        hasGoalsToday: !!todayGoals,
-        todayGoals: todayGoals,
-        allUserGoals: allUserGoals,
-        totalTodayGoals: totalTodayGoals,
-        date: todayString
+        userGoals,
+        debugInfo,
+        userId
       },
-      message: "Daily goals verification completed"
+      message: "Daily goals verification and debug completed"
     });
   } catch (error) {
     console.error("💥 Error verifying daily goals:", error);

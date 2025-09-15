@@ -15,7 +15,7 @@ export interface DailyGoalCreationResult {
 
 export class EnhancedDailyGoalsService {
   /**
-   * COMPLETELY FIXED - Create daily goals for all users with ACTUAL database operations
+   * FIXED - Create daily goals for all users with PROPER upsert operations
    */
   static async createDailyGoalsForAllUsers(): Promise<DailyGoalCreationResult> {
     console.log("📊 === STARTING DAILY GOALS CREATION (FIXED VERSION) ===");
@@ -32,7 +32,10 @@ export class EnhancedDailyGoalsService {
       // Step 1: Get today's date in the correct format
       const today = new Date();
       const todayString = today.toISOString().split('T')[0];
+      const todayDate = new Date(todayString);
+      
       console.log(`📅 TODAY: ${todayString}`);
+      console.log(`📅 TODAY DATE OBJECT: ${todayDate.toISOString()}`);
 
       // Step 2: Get ALL users from database
       console.log("👥 FETCHING ALL USERS...");
@@ -79,34 +82,28 @@ export class EnhancedDailyGoalsService {
 
       console.log(`📋 USERS WITH QUESTIONNAIRES: ${questionnaireMap.size}`);
 
-      // Step 4: Process EACH user individually with DIRECT database operations
+      // Step 4: Check existing goals for today
+      console.log("🔍 CHECKING EXISTING GOALS FOR TODAY...");
+      const existingGoals = await prisma.dailyGoal.findMany({
+        where: {
+          date: todayDate
+        },
+        select: {
+          user_id: true,
+          id: true,
+          calories: true
+        }
+      });
+
+      console.log(`📊 EXISTING GOALS FOR TODAY: ${existingGoals.length}`);
+      const existingUserIds = new Set(existingGoals.map(g => g.user_id));
+
+      // Step 5: Process EACH user individually with UPSERT operations
       for (let i = 0; i < allUsers.length; i++) {
         const user = allUsers[i];
         
         try {
           console.log(`\n📊 [${i + 1}/${allUsers.length}] PROCESSING USER: ${user.user_id} (${user.email})`);
-
-          // Check if user already has goals for today
-          const existingGoal = await prisma.dailyGoal.findFirst({
-            where: {
-              user_id: user.user_id,
-              date: {
-                gte: new Date(todayString + 'T00:00:00.000Z'),
-                lt: new Date(todayString + 'T23:59:59.999Z')
-              }
-            }
-          });
-
-          if (existingGoal) {
-            console.log(`⏭️ User ${user.user_id} already has goals for today - SKIPPING`);
-            result.skipped++;
-            result.details.push({
-              user_id: user.user_id,
-              action: 'skipped',
-              message: 'Already has goals for today'
-            });
-            continue;
-          }
 
           // Get questionnaire for this user
           const questionnaire = questionnaireMap.get(user.user_id);
@@ -116,13 +113,30 @@ export class EnhancedDailyGoalsService {
           const goals = this.calculatePersonalizedGoals(questionnaire);
           console.log(`🎯 Calculated goals for ${user.user_id}:`, goals);
 
-          // DIRECT DATABASE INSERT - GUARANTEED TO WORK
-          console.log(`💾 CREATING daily goal in database for user: ${user.user_id}...`);
+          // Use UPSERT to handle existing goals properly
+          console.log(`💾 UPSERTING daily goal for user: ${user.user_id}...`);
           
-          const createdGoal = await prisma.dailyGoal.create({
-            data: {
+          const upsertedGoal = await prisma.dailyGoal.upsert({
+            where: {
+              user_id_date: {
+                user_id: user.user_id,
+                date: todayDate
+              }
+            },
+            update: {
+              calories: goals.calories,
+              protein_g: goals.protein_g,
+              carbs_g: goals.carbs_g,
+              fats_g: goals.fats_g,
+              fiber_g: goals.fiber_g,
+              sodium_mg: goals.sodium_mg,
+              sugar_g: goals.sugar_g,
+              water_ml: goals.water_ml,
+              updated_at: new Date()
+            },
+            create: {
               user_id: user.user_id,
-              date: new Date(todayString + 'T00:00:00.000Z'),
+              date: todayDate,
               calories: goals.calories,
               protein_g: goals.protein_g,
               carbs_g: goals.carbs_g,
@@ -134,34 +148,45 @@ export class EnhancedDailyGoalsService {
             }
           });
 
-          console.log(`✅ SUCCESSFULLY CREATED GOAL IN DATABASE:`, {
-            id: createdGoal.id,
-            user_id: createdGoal.user_id,
-            date: createdGoal.date.toISOString(),
-            calories: createdGoal.calories
-          });
-
-          // IMMEDIATE VERIFICATION - Check if it actually exists
-          const verification = await prisma.dailyGoal.findUnique({
-            where: { id: createdGoal.id }
-          });
-
-          if (verification) {
-            console.log(`✅ VERIFIED: Goal exists in database with ID ${verification.id}`);
+          // Determine if it was created or updated
+          const wasExisting = existingUserIds.has(user.user_id);
+          
+          if (wasExisting) {
+            console.log(`🔄 UPDATED existing goal for user: ${user.user_id}`);
+            result.updated++;
+            result.details.push({
+              user_id: user.user_id,
+              action: 'updated',
+              message: `Goal updated with ID ${upsertedGoal.id}`
+            });
+          } else {
+            console.log(`✅ CREATED new goal for user: ${user.user_id}`);
             result.created++;
             result.details.push({
               user_id: user.user_id,
               action: 'created',
-              message: `Goal created and verified with ID ${verification.id}`
+              message: `Goal created with ID ${upsertedGoal.id}`
             });
+          }
+
+          console.log(`✅ UPSERTED GOAL:`, {
+            id: upsertedGoal.id,
+            user_id: upsertedGoal.user_id,
+            date: upsertedGoal.date.toISOString(),
+            calories: upsertedGoal.calories,
+            action: wasExisting ? 'UPDATED' : 'CREATED'
+          });
+
+          // IMMEDIATE VERIFICATION - Check if it actually exists
+          const verification = await prisma.dailyGoal.findUnique({
+            where: { id: upsertedGoal.id }
+          });
+
+          if (verification) {
+            console.log(`✅ VERIFIED: Goal exists in database with ID ${verification.id}`);
           } else {
             console.error(`❌ VERIFICATION FAILED: Goal not found in database!`);
             result.errors.push(`Verification failed for user ${user.user_id}`);
-            result.details.push({
-              user_id: user.user_id,
-              action: 'error',
-              message: 'Goal creation verification failed'
-            });
           }
 
         } catch (userError) {
@@ -175,14 +200,11 @@ export class EnhancedDailyGoalsService {
         }
       }
 
-      // Step 5: Final verification - count all goals for today
+      // Step 6: Final verification - count all goals for today
       console.log("\n🔍 FINAL VERIFICATION: Counting all goals for today...");
       const finalGoalCount = await prisma.dailyGoal.count({
         where: {
-          date: {
-            gte: new Date(todayString + 'T00:00:00.000Z'),
-            lt: new Date(todayString + 'T23:59:59.999Z')
-          }
+          date: todayDate
         }
       });
 
@@ -191,22 +213,20 @@ export class EnhancedDailyGoalsService {
       // List all goals for today for verification
       const allTodayGoals = await prisma.dailyGoal.findMany({
         where: {
-          date: {
-            gte: new Date(todayString + 'T00:00:00.000Z'),
-            lt: new Date(todayString + 'T23:59:59.999Z')
-          }
+          date: todayDate
         },
         select: {
           id: true,
           user_id: true,
           calories: true,
-          created_at: true
+          created_at: true,
+          updated_at: true
         }
       });
 
-      console.log(`📋 ALL GOALS FOR TODAY:`);
-      allTodayGoals.forEach(goal => {
-        console.log(`  - ID: ${goal.id}, User: ${goal.user_id}, Calories: ${goal.calories}, Created: ${goal.created_at.toISOString()}`);
+      console.log(`📋 ALL GOALS FOR TODAY (${allTodayGoals.length}):`);
+      allTodayGoals.forEach((goal, index) => {
+        console.log(`  ${index + 1}. ID: ${goal.id}, User: ${goal.user_id}, Calories: ${goal.calories}, Created: ${goal.created_at.toISOString()}, Updated: ${goal.updated_at.toISOString()}`);
       });
 
       console.log(`\n📊 === FINAL RESULT ===`);
@@ -226,7 +246,7 @@ export class EnhancedDailyGoalsService {
   }
 
   /**
-   * Force create daily goals for ALL users - TESTING VERSION
+   * Force create daily goals for ALL users - TESTING VERSION with UPSERT
    */
   static async forceCreateGoalsForAllUsers(): Promise<DailyGoalCreationResult> {
     console.log("🚨 === FORCE CREATING DAILY GOALS FOR ALL USERS ===");
@@ -242,7 +262,10 @@ export class EnhancedDailyGoalsService {
     try {
       const today = new Date();
       const todayString = today.toISOString().split('T')[0];
+      const todayDate = new Date(todayString);
+      
       console.log(`📅 Force creating goals for date: ${todayString}`);
+      console.log(`📅 Date object: ${todayDate.toISOString()}`);
 
       // Get ALL users with questionnaires
       const allUsers = await prisma.user.findMany({
@@ -256,6 +279,19 @@ export class EnhancedDailyGoalsService {
 
       console.log(`👥 FORCE processing ${allUsers.length} users`);
 
+      // Get existing goals to determine create vs update
+      const existingGoals = await prisma.dailyGoal.findMany({
+        where: {
+          date: todayDate
+        },
+        select: {
+          user_id: true
+        }
+      });
+
+      const existingUserIds = new Set(existingGoals.map(g => g.user_id));
+      console.log(`📊 Users with existing goals: ${existingUserIds.size}`);
+
       for (let i = 0; i < allUsers.length; i++) {
         const user = allUsers[i];
         
@@ -267,25 +303,30 @@ export class EnhancedDailyGoalsService {
           
           console.log(`🎯 Goals calculated for ${user.user_id}:`, goals);
 
-          // Delete existing goal if it exists (for clean creation)
-          const deletedGoals = await prisma.dailyGoal.deleteMany({
+          // Use UPSERT to handle existing goals properly
+          console.log(`💾 UPSERTING goal for user: ${user.user_id}`);
+          
+          const upsertedGoal = await prisma.dailyGoal.upsert({
             where: {
-              user_id: user.user_id,
-              date: {
-                gte: new Date(todayString + 'T00:00:00.000Z'),
-                lt: new Date(todayString + 'T23:59:59.999Z')
+              user_id_date: {
+                user_id: user.user_id,
+                date: todayDate
               }
-            }
-          });
-
-          console.log(`🗑️ Deleted ${deletedGoals.count} existing goals for today`);
-
-          // Create new goal with DIRECT INSERT
-          console.log(`➕ CREATING new goal for user: ${user.user_id}`);
-          const createdGoal = await prisma.dailyGoal.create({
-            data: {
+            },
+            update: {
+              calories: goals.calories,
+              protein_g: goals.protein_g,
+              carbs_g: goals.carbs_g,
+              fats_g: goals.fats_g,
+              fiber_g: goals.fiber_g,
+              sodium_mg: goals.sodium_mg,
+              sugar_g: goals.sugar_g,
+              water_ml: goals.water_ml,
+              updated_at: new Date()
+            },
+            create: {
               user_id: user.user_id,
-              date: new Date(todayString + 'T00:00:00.000Z'),
+              date: todayDate,
               calories: goals.calories,
               protein_g: goals.protein_g,
               carbs_g: goals.carbs_g,
@@ -297,34 +338,45 @@ export class EnhancedDailyGoalsService {
             }
           });
 
-          console.log(`✅ CREATED daily goal:`, {
-            id: createdGoal.id,
-            user_id: createdGoal.user_id,
-            date: createdGoal.date.toISOString(),
-            calories: createdGoal.calories
-          });
-
-          // IMMEDIATE VERIFICATION
-          const verification = await prisma.dailyGoal.findUnique({
-            where: { id: createdGoal.id }
-          });
-
-          if (verification) {
-            console.log(`✅ VERIFIED: Goal exists in database with ID ${verification.id}`);
+          // Determine if it was created or updated
+          const wasExisting = existingUserIds.has(user.user_id);
+          
+          if (wasExisting) {
+            console.log(`🔄 UPDATED goal for user: ${user.user_id}`);
+            result.updated++;
+            result.details.push({
+              user_id: user.user_id,
+              action: 'updated',
+              message: `Goal updated with ID ${upsertedGoal.id}`
+            });
+          } else {
+            console.log(`✅ CREATED goal for user: ${user.user_id}`);
             result.created++;
             result.details.push({
               user_id: user.user_id,
               action: 'created',
-              message: `Goal created and verified with ID ${verification.id}`
+              message: `Goal created with ID ${upsertedGoal.id}`
             });
+          }
+
+          console.log(`✅ UPSERTED GOAL:`, {
+            id: upsertedGoal.id,
+            user_id: upsertedGoal.user_id,
+            date: upsertedGoal.date.toISOString(),
+            calories: upsertedGoal.calories,
+            action: wasExisting ? 'UPDATED' : 'CREATED'
+          });
+
+          // IMMEDIATE VERIFICATION
+          const verification = await prisma.dailyGoal.findUnique({
+            where: { id: upsertedGoal.id }
+          });
+
+          if (verification) {
+            console.log(`✅ VERIFIED: Goal exists in database with ID ${verification.id}`);
           } else {
             console.error(`❌ VERIFICATION FAILED!`);
             result.errors.push(`Verification failed for user ${user.user_id}`);
-            result.details.push({
-              user_id: user.user_id,
-              action: 'error',
-              message: 'Goal creation verification failed'
-            });
           }
 
         } catch (userError) {
@@ -341,10 +393,7 @@ export class EnhancedDailyGoalsService {
       // Final verification
       const finalCount = await prisma.dailyGoal.count({
         where: {
-          date: {
-            gte: new Date(todayString + 'T00:00:00.000Z'),
-            lt: new Date(todayString + 'T23:59:59.999Z')
-          }
+          date: todayDate
         }
       });
 
@@ -354,6 +403,24 @@ export class EnhancedDailyGoalsService {
       console.log(`⏭️ Skipped: ${result.skipped}`);
       console.log(`❌ Errors: ${result.errors.length}`);
       console.log(`📊 Total goals in DB: ${finalCount}`);
+
+      // List all goals for verification
+      const allGoals = await prisma.dailyGoal.findMany({
+        where: { date: todayDate },
+        select: {
+          id: true,
+          user_id: true,
+          calories: true,
+          protein_g: true,
+          created_at: true,
+          updated_at: true
+        }
+      });
+
+      console.log(`📋 ALL GOALS IN DATABASE FOR TODAY:`);
+      allGoals.forEach((goal, index) => {
+        console.log(`  ${index + 1}. ID: ${goal.id}, User: ${goal.user_id}, Calories: ${goal.calories}, Protein: ${goal.protein_g}g`);
+      });
 
       return result;
 
@@ -365,7 +432,7 @@ export class EnhancedDailyGoalsService {
   }
 
   /**
-   * Get user's current daily goals - CREATE IF MISSING
+   * Get user's current daily goals - CREATE IF MISSING using UPSERT
    */
   static async getUserDailyGoals(userId: string): Promise<NutritionGoals> {
     try {
@@ -373,38 +440,66 @@ export class EnhancedDailyGoalsService {
       
       const today = new Date();
       const todayString = today.toISOString().split('T')[0];
+      const todayDate = new Date(todayString);
       
       console.log(`📅 Looking for goals on date: ${todayString}`);
+      console.log(`📅 Date object: ${todayDate.toISOString()}`);
       
-      // Try to get today's goals
-      const todayGoals = await prisma.dailyGoal.findFirst({
+      // Get questionnaire for goal calculation
+      const questionnaire = await prisma.userQuestionnaire.findFirst({
+        where: { user_id: userId },
+        orderBy: { date_completed: 'desc' }
+      });
+
+      console.log(`📋 Questionnaire found: ${!!questionnaire}`);
+
+      // Calculate goals
+      const goals = this.calculatePersonalizedGoals(questionnaire);
+      console.log(`🎯 Calculated goals:`, goals);
+
+      // Use UPSERT to get or create goals
+      const dailyGoal = await prisma.dailyGoal.upsert({
         where: {
-          user_id: userId,
-          date: {
-            gte: new Date(todayString + 'T00:00:00.000Z'),
-            lt: new Date(todayString + 'T23:59:59.999Z')
+          user_id_date: {
+            user_id: userId,
+            date: todayDate
           }
+        },
+        update: {
+          // Don't update existing goals unless needed
+          updated_at: new Date()
+        },
+        create: {
+          user_id: userId,
+          date: todayDate,
+          calories: goals.calories,
+          protein_g: goals.protein_g,
+          carbs_g: goals.carbs_g,
+          fats_g: goals.fats_g,
+          fiber_g: goals.fiber_g,
+          sodium_mg: goals.sodium_mg,
+          sugar_g: goals.sugar_g,
+          water_ml: goals.water_ml,
         }
       });
 
-      if (todayGoals) {
-        console.log("✅ Found existing daily goals for today");
-        console.log(`📊 Goals: Calories=${todayGoals.calories}, Protein=${todayGoals.protein_g}g`);
-        return {
-          calories: Number(todayGoals.calories),
-          protein_g: Number(todayGoals.protein_g),
-          carbs_g: Number(todayGoals.carbs_g),
-          fats_g: Number(todayGoals.fats_g),
-          fiber_g: Number(todayGoals.fiber_g),
-          sodium_mg: Number(todayGoals.sodium_mg),
-          sugar_g: Number(todayGoals.sugar_g),
-          water_ml: Number(todayGoals.water_ml)
-        };
-      }
+      console.log(`✅ UPSERTED daily goal:`, {
+        id: dailyGoal.id,
+        user_id: dailyGoal.user_id,
+        date: dailyGoal.date.toISOString(),
+        calories: dailyGoal.calories
+      });
 
-      // If no goals for today, CREATE THEM NOW
-      console.log("📊 No goals found for today, creating new ones...");
-      return await this.forceCreateDailyGoalsForUser(userId);
+      return {
+        calories: Number(dailyGoal.calories),
+        protein_g: Number(dailyGoal.protein_g),
+        carbs_g: Number(dailyGoal.carbs_g),
+        fats_g: Number(dailyGoal.fats_g),
+        fiber_g: Number(dailyGoal.fiber_g),
+        sodium_mg: Number(dailyGoal.sodium_mg),
+        sugar_g: Number(dailyGoal.sugar_g),
+        water_ml: Number(dailyGoal.water_ml)
+      };
 
     } catch (error) {
       console.error("💥 Error getting user daily goals:", error);
@@ -423,7 +518,7 @@ export class EnhancedDailyGoalsService {
   }
 
   /**
-   * Force create daily goals for a specific user - GUARANTEED TO WORK
+   * Force create daily goals for a specific user - GUARANTEED TO WORK with UPSERT
    */
   static async forceCreateDailyGoalsForUser(userId: string): Promise<NutritionGoals> {
     try {
@@ -452,29 +547,34 @@ export class EnhancedDailyGoalsService {
       
       const today = new Date();
       const todayString = today.toISOString().split('T')[0];
+      const todayDate = new Date(todayString);
 
       console.log(`🎯 Calculated goals for ${userId}:`, goals);
       console.log(`📅 Creating for date: ${todayString}`);
 
-      // Delete existing goal if it exists
-      const deletedGoals = await prisma.dailyGoal.deleteMany({
+      // Use UPSERT to handle existing goals
+      console.log(`💾 UPSERTING goal for user: ${userId}`);
+      const upsertedGoal = await prisma.dailyGoal.upsert({
         where: {
-          user_id: userId,
-          date: {
-            gte: new Date(todayString + 'T00:00:00.000Z'),
-            lt: new Date(todayString + 'T23:59:59.999Z')
+          user_id_date: {
+            user_id: userId,
+            date: todayDate
           }
-        }
-      });
-
-      console.log(`🗑️ Deleted ${deletedGoals.count} existing goals for today`);
-
-      // Create new goal with DIRECT INSERT
-      console.log(`➕ CREATING new goal for user: ${userId}`);
-      const createdGoal = await prisma.dailyGoal.create({
-        data: {
+        },
+        update: {
+          calories: goals.calories,
+          protein_g: goals.protein_g,
+          carbs_g: goals.carbs_g,
+          fats_g: goals.fats_g,
+          fiber_g: goals.fiber_g,
+          sodium_mg: goals.sodium_mg,
+          sugar_g: goals.sugar_g,
+          water_ml: goals.water_ml,
+          updated_at: new Date()
+        },
+        create: {
           user_id: userId,
-          date: new Date(todayString + 'T00:00:00.000Z'),
+          date: todayDate,
           calories: goals.calories,
           protein_g: goals.protein_g,
           carbs_g: goals.carbs_g,
@@ -486,16 +586,16 @@ export class EnhancedDailyGoalsService {
         }
       });
 
-      console.log(`✅ CREATED daily goal:`, {
-        id: createdGoal.id,
-        user_id: createdGoal.user_id,
-        date: createdGoal.date.toISOString(),
-        calories: createdGoal.calories
+      console.log(`✅ UPSERTED daily goal:`, {
+        id: upsertedGoal.id,
+        user_id: upsertedGoal.user_id,
+        date: upsertedGoal.date.toISOString(),
+        calories: upsertedGoal.calories
       });
 
       // IMMEDIATE VERIFICATION
       const verification = await prisma.dailyGoal.findUnique({
-        where: { id: createdGoal.id }
+        where: { id: upsertedGoal.id }
       });
 
       if (verification) {
@@ -505,16 +605,16 @@ export class EnhancedDailyGoalsService {
         throw new Error("Goal creation verification failed");
       }
 
-      // Return the created goals
+      // Return the upserted goals
       return {
-        calories: Number(createdGoal.calories),
-        protein_g: Number(createdGoal.protein_g),
-        carbs_g: Number(createdGoal.carbs_g),
-        fats_g: Number(createdGoal.fats_g),
-        fiber_g: Number(createdGoal.fiber_g),
-        sodium_mg: Number(createdGoal.sodium_mg),
-        sugar_g: Number(createdGoal.sugar_g),
-        water_ml: Number(createdGoal.water_ml)
+        calories: Number(upsertedGoal.calories),
+        protein_g: Number(upsertedGoal.protein_g),
+        carbs_g: Number(upsertedGoal.carbs_g),
+        fats_g: Number(upsertedGoal.fats_g),
+        fiber_g: Number(upsertedGoal.fiber_g),
+        sodium_mg: Number(upsertedGoal.sodium_mg),
+        sugar_g: Number(upsertedGoal.sugar_g),
+        water_ml: Number(upsertedGoal.water_ml)
       };
 
     } catch (error) {
@@ -651,7 +751,7 @@ export class EnhancedDailyGoalsService {
   }
 
   /**
-   * Simple method to create goals for a single user - DIRECT OPERATION
+   * Simple method to create goals for a single user - DIRECT UPSERT
    */
   static async createDailyGoalForUser(userId: string): Promise<boolean> {
     try {
@@ -659,20 +759,9 @@ export class EnhancedDailyGoalsService {
 
       const today = new Date();
       const todayString = today.toISOString().split('T')[0];
-      const todayDate = new Date(todayString + 'T00:00:00.000Z');
+      const todayDate = new Date(todayString);
 
-      // Check if goal already exists
-      const existingGoal = await prisma.dailyGoal.findFirst({
-        where: {
-          user_id: userId,
-          date: todayDate
-        }
-      });
-
-      if (existingGoal) {
-        console.log(`⏭️ Goal already exists for user ${userId} on ${todayString}`);
-        return true;
-      }
+      console.log(`📅 Creating goal for date: ${todayString}`);
 
       // Get questionnaire
       const questionnaire = await prisma.userQuestionnaire.findFirst({
@@ -684,10 +773,27 @@ export class EnhancedDailyGoalsService {
       const goals = this.calculatePersonalizedGoals(questionnaire);
       console.log(`🎯 Calculated goals:`, goals);
 
-      // Create goal directly
-      console.log(`💾 CREATING goal in database...`);
-      const createdGoal = await prisma.dailyGoal.create({
-        data: {
+      // Use UPSERT to handle existing goals
+      console.log(`💾 UPSERTING goal in database...`);
+      const upsertedGoal = await prisma.dailyGoal.upsert({
+        where: {
+          user_id_date: {
+            user_id: userId,
+            date: todayDate
+          }
+        },
+        update: {
+          calories: goals.calories,
+          protein_g: goals.protein_g,
+          carbs_g: goals.carbs_g,
+          fats_g: goals.fats_g,
+          fiber_g: goals.fiber_g,
+          sodium_mg: goals.sodium_mg,
+          sugar_g: goals.sugar_g,
+          water_ml: goals.water_ml,
+          updated_at: new Date()
+        },
+        create: {
           user_id: userId,
           date: todayDate,
           calories: goals.calories,
@@ -701,16 +807,16 @@ export class EnhancedDailyGoalsService {
         }
       });
 
-      console.log(`✅ GOAL CREATED SUCCESSFULLY:`, {
-        id: createdGoal.id,
-        user_id: createdGoal.user_id,
-        date: createdGoal.date.toISOString(),
-        calories: createdGoal.calories
+      console.log(`✅ GOAL UPSERTED SUCCESSFULLY:`, {
+        id: upsertedGoal.id,
+        user_id: upsertedGoal.user_id,
+        date: upsertedGoal.date.toISOString(),
+        calories: upsertedGoal.calories
       });
 
       // Verify it exists
       const verification = await prisma.dailyGoal.findUnique({
-        where: { id: createdGoal.id }
+        where: { id: upsertedGoal.id }
       });
 
       if (verification) {
@@ -724,6 +830,63 @@ export class EnhancedDailyGoalsService {
     } catch (error) {
       console.error(`💥 ERROR creating daily goal for user ${userId}:`, error);
       return false;
+    }
+  }
+
+  /**
+   * Debug method to check database state
+   */
+  static async debugDatabaseState(): Promise<any> {
+    try {
+      console.log("🔍 === DEBUGGING DATABASE STATE ===");
+
+      const today = new Date();
+      const todayString = today.toISOString().split('T')[0];
+      const todayDate = new Date(todayString);
+
+      // Get total users
+      const totalUsers = await prisma.user.count();
+      console.log(`👥 Total users in database: ${totalUsers}`);
+
+      // Get users with goals today
+      const goalsToday = await prisma.dailyGoal.findMany({
+        where: { date: todayDate },
+        select: {
+          id: true,
+          user_id: true,
+          calories: true,
+          created_at: true,
+          updated_at: true
+        }
+      });
+
+      console.log(`📊 Goals for today (${todayString}): ${goalsToday.length}`);
+
+      // Get all users
+      const allUsers = await prisma.user.findMany({
+        select: {
+          user_id: true,
+          email: true,
+          subscription_type: true
+        }
+      });
+
+      console.log(`👥 All users:`);
+      allUsers.forEach((user, index) => {
+        const hasGoal = goalsToday.some(g => g.user_id === user.user_id);
+        console.log(`  ${index + 1}. ${user.user_id} (${user.email}) - ${user.subscription_type} - Goal: ${hasGoal ? 'YES' : 'NO'}`);
+      });
+
+      return {
+        totalUsers,
+        goalsToday: goalsToday.length,
+        allUsers,
+        goalsToday: goalsToday
+      };
+
+    } catch (error) {
+      console.error("💥 Error debugging database state:", error);
+      return null;
     }
   }
 }
